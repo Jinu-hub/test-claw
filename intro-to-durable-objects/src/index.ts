@@ -5,10 +5,14 @@ export { DurablePotato };
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
 		const { pathname, searchParams } = new URL(request.url);
-		const name = searchParams.get('name') ?? 'default';
-		if (pathname === '/') {
-			const dp = env.DP.getByName(name) as DurableObjectStub<DurablePotato>;
-			return new Response(await dp.increase());
+		//const name = searchParams.get('name') ?? 'default';
+		if (pathname === '/ws') {
+			const roomId = searchParams.get('roomId') ?? 'public';
+			const upgrade = request.headers.get('Upgrade');
+			if (upgrade) {
+				const dp = env.DP.getByName(roomId);
+				return dp.fetch(request);
+			}
 		}
 		return new Response(null, {
 			status: 404,
