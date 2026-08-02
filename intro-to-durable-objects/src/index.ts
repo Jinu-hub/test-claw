@@ -4,9 +4,10 @@ export { DurablePotato };
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
-		const { pathname } = new URL(request.url);
+		const { pathname, searchParams } = new URL(request.url);
+		const name = searchParams.get('name') ?? 'default';
 		if (pathname === '/') {
-			const dp = env.DP.getByName('default') as DurableObjectStub<DurablePotato>;
+			const dp = env.DP.getByName(name) as DurableObjectStub<DurablePotato>;
 			return new Response(await dp.increase());
 		}
 		return new Response(null, {

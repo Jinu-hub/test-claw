@@ -19,9 +19,23 @@ export class DurablePotato extends DurableObject<Env> {
 		`);
 	}
 
-	increase() {
-		const { total } = this.sql.exec(`SELECT total FROM pongs`).one() as { total: number };
-		this.sql.exec(`UPDATE pongs SET total = ? WHERE id = 1`, total + 1);
-		return `count is ${total + 1}`;
+	async increase() {
+		const { total } = this.sql.exec('UPDATE pongs SET total = total + 1 WHERE id = 1 RETURNING total;').one() as { total: number };
+
+		if (total >= 30) {
+			const currentAlarm = await this.ctx.storage.getAlarm();
+			console.log('alarm', currentAlarm);
+			if (currentAlarm === null) {
+				this.ctx.storage.setAlarm(Date.now() + 10_000);
+			}
+		}
+
+		return `count is ${total}`;
+	}
+
+	alarm() {
+		this.sql.exec('UPDATE pongs SET total = 0 WHERE id = 1');
+		// search in your `alarms` table and find the next alarm
+		// schedule the next alarm
 	}
 } 
