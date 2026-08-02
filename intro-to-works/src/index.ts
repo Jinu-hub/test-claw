@@ -13,6 +13,7 @@
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
+		
 		env.TEST.put("test", "test");
 		return new Response("Hello World!");
 	},
