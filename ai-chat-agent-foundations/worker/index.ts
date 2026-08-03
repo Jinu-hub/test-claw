@@ -2,7 +2,7 @@ import { AIChatAgent } from "@cloudflare/ai-chat";
 import { routeAgentRequest } from "agents";
 import { createWorkersAI } from "workers-ai-provider";
 import { convertToModelMessages, isLoopFinished, streamText } from "ai";
-import { getWeather } from "./tools";
+import { getWeather, getLocation } from "./tools";
 
 export class PotatoChatAgent extends AIChatAgent<Env> {
   async onChatMessage() {
@@ -14,6 +14,7 @@ export class PotatoChatAgent extends AIChatAgent<Env> {
       messages: await convertToModelMessages(this.messages),
       tools: {
         getWeather,
+        getLocation,
       },
       stopWhen: isLoopFinished(),
     }) 
