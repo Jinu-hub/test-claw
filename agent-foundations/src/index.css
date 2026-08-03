@@ -1,1 +1,79 @@
 @import "tailwindcss";
+
+@theme {
+	--font-display: "Syne", sans-serif;
+	--font-body: "Outfit", sans-serif;
+
+	--color-ink: #0c1f1a;
+	--color-ink-muted: #3d5a52;
+	--color-surface: #f3f7f5;
+	--color-court: #1a6b52;
+	--color-court-deep: #0e4334;
+	--color-ball: #e8ff47;
+	--color-paddle: #ff5c35;
+}
+
+@layer base {
+	html {
+		font-family: var(--font-body);
+		color: var(--color-ink);
+		background: var(--color-surface);
+	}
+
+	body {
+		min-height: 100dvh;
+		margin: 0;
+	}
+
+	button {
+		font: inherit;
+		cursor: pointer;
+	}
+}
+
+@keyframes pulse-dot {
+	0%,
+	100% {
+		opacity: 0.4;
+		transform: scale(0.9);
+	}
+	50% {
+		opacity: 1;
+		transform: scale(1.15);
+	}
+}
+
+@keyframes float-in {
+	from {
+		opacity: 0;
+		transform: translateY(12px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes count-pop {
+	0% {
+		transform: scale(1);
+	}
+	40% {
+		transform: scale(1.08);
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+
+.animate-pulse-dot {
+	animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+.animate-float-in {
+	animation: float-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-count-pop {
+	animation: count-pop 0.35s ease-out;
+}

@@ -1,4 +1,4 @@
-import { Agent, routeAgentRequest } from 'agents';
+import { Agent, callable, routeAgentRequest } from 'agents';
 
 export type PingPongState = {
 	count: number;
@@ -9,12 +9,18 @@ export class ChattingRoomAgent extends Agent<Env, PingPongState> {
 		count : 0,
 	};
 
+	@callable()
 	increment() {
-		this.state.count++;
+		this.setState({
+			count: this.state.count + 1,
+		});
 	}
 
+	@callable()
 	decrement() {
-		this.state.count--;
+		this.setState({
+			count: this.state.count - 1,
+		});
 	}
 }
 
