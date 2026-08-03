@@ -1,11 +1,21 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
 import { routeAgentRequest } from "agents";
 import { createWorkersAI } from "workers-ai-provider";
-import { convertToModelMessages, isLoopFinished, streamText } from "ai";
-import { getWeather, getLocation } from "./tools";
+import {
+  convertToModelMessages,
+  isLoopFinished,
+  streamText,
+  type StreamTextOnFinishCallback,
+  type ToolSet,
+  type UIMessage
+} from "ai";
+import { getWeather, getLocation, buyPlaneTicket, getTickets } from "./tools";
 
 export class PotatoChatAgent extends AIChatAgent<Env> {
-  async onChatMessage() {
+  async onChatMessage(
+    _onFinish: StreamTextOnFinishCallback<ToolSet>,
+    options?: { abortSignal?: AbortSignal },
+  ) {
     const workersAi = createWorkersAI({
       binding: this.env.AI,
     });
@@ -15,10 +25,28 @@ export class PotatoChatAgent extends AIChatAgent<Env> {
       tools: {
         getWeather,
         getLocation,
+        getTickets,
+        buyPlaneTicket,
       },
+      abortSignal: options?.abortSignal,
       stopWhen: isLoopFinished(),
     }) 
     return textStream.toUIMessageStreamResponse(); 
+  }
+
+  sanitizeMessageForPersistence(message: UIMessage): UIMessage {
+    return {
+      ...message,
+      parts: message.parts.map((part) => {
+        if (part.type === "text") {
+          return {
+            ...part,
+            text: part.text.replace("food", "❌ stop eating u fat ❌"),
+          };
+        }
+        return part;
+      }),
+    };
   }
 }
 
