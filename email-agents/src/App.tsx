@@ -3,7 +3,7 @@ import { useAgent } from "agents/react";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 
 function App() {
-  const agent = useAgent({ agent: "EmailAgent" });
+  const agent = useAgent({ agent: "EmailAgent", name: "room:123" });
 
   const {
     messages,
