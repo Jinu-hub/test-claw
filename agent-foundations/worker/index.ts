@@ -1,32 +1,92 @@
-import { Agent, callable, routeAgentRequest } from 'agents';
+import { Agent, callable, getCurrentAgent, routeAgentRequest
+	, type Connection, type ConnectionContext, type WSMessage } from 'agents';
 
-export type PingPongState = {
-	count: number;
+export type ChattingRoomState = {
+	currentlyOnline: number;
 }
 
-export class ChattingRoomAgent extends Agent<Env, PingPongState> {
+export class ChattingRoomAgent extends Agent<Env, ChattingRoomState> {
 	initialState = {
-		count : 0,
+		currentlyOnline : 0,
 	};
 
-	@callable()
-	increment() {
+	onStart() {
+		void this.sql`
+      CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nickname TEXT NOT NULL,
+        message TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `;
+	}
+
+	// onStateChanged(state: ChattingRoomState, source: Connection | 'server'): void {
+	// 	console.log('new state', state);
+	// 	console.log('who did it', source);
+	// }
+
+	// validateStateChange(_nextState: ChattingRoomState, source: Connection | 'server'): void {
+	// 	if (source !== 'server') throw new Error('cant do this.');
+	// }
+
+	shouldConnectionBeReadonly(_connection: Connection, ctx: ConnectionContext) {
+		const url = new URL(ctx.request.url);
+		const nickname = url.searchParams.get('nickname') ?? 'anon';
+		return nickname.includes('read');
+	}
+
+	onConnect(connection: Connection, ctx: ConnectionContext) {
+		const url = new URL(ctx.request.url);
+		const nickname = url.searchParams.get('nickname') ?? 'anon';
+
+		connection.setState({
+			nickname,
+		});
+
 		this.setState({
-			count: this.state.count + 1,
+			currentlyOnline: this.state.currentlyOnline + 1,
 		});
 	}
 
-	@callable()
-	decrement() {
+	onClose() {
 		this.setState({
-			count: this.state.count - 1,
+			currentlyOnline: this.state.currentlyOnline - 1,
 		});
+	}
+
+	onMessage(connection: Connection<{ nickname: string }>, message: WSMessage) {
+		const messageObj = {
+			nickname: connection.state?.nickname ?? 'anon',
+			message: message.toString(),
+			created_at: Date.now(),
+		};
+		if (message.toString().includes('delete')) {
+			this.scheduleEvery(30, 'deleteMessages');
+		}
+		void this.sql`
+      INSERT INTO messages (nickname, message, created_at) VALUES (${messageObj.nickname}, ${messageObj.message}, ${messageObj.created_at})
+      `;
+		//this.broadcast(JSON.stringify(messageObj), [connection.id]);
+		this.broadcast(JSON.stringify(messageObj));
+	}
+
+	deleteMessages() {
+		void this.sql`DELETE FROM messages`;
+	}
+
+	@callable()
+	loadHistory() {
+		const { connection } = getCurrentAgent<ChattingRoomAgent>();
+		// this.setConnectionReadonly(connection, true)
+		console.log(connection?.state, 'loaded history');
+		return this.sql`SELECT * FROM messages ORDER BY created_at ASC LIMIT 100`;
 	}
 }
 
 export default {
 	async fetch(request, env) {
-		//console.log('fetch', request.url);
+		console.log('fetch', request.url);
 		const agentResponse = await routeAgentRequest(request, env);
 		if (agentResponse) return agentResponse;
 		return new Response(null, { status: 404 });
