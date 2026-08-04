@@ -1,4 +1,4 @@
-import { Agent, routeAgentRequest } from "agents";
+import { Agent,callable, routeAgentRequest } from "agents";
 import {
   withVoice,
   WorkersAIFluxSTT,
@@ -13,8 +13,14 @@ const VoiceAgentBase = withVoice(Agent);
 
 export class VoiceAgent extends VoiceAgentBase<Env> {
   // memo: more better quality if use ElevenLabs TTS
-  transcriber = new WorkersAIFluxSTT(this.env.AI); // Speech to text
+  transcriber = new WorkersAIFluxSTT(this.env.AI, {
+    keyterms: ["tailwind", "adam smith", "libertarianism", "nomadclaw"],
+  });
   tts = new WorkersAITTS(this.env.AI); // Text to speech
+
+  beforeSynthesize(text: string) {
+    return text.replaceAll("*", "");
+  }
 
   async onTurn(transcript: string, context: VoiceTurnContext) {
     const workersAi = createWorkersAI({ binding: this.env.AI });
@@ -33,13 +39,22 @@ export class VoiceAgent extends VoiceAgentBase<Env> {
         getWeather: tool({
           description: "Get the weather of a city",
           inputSchema: z.object({ city: z.string() }),
-          execute: ({ city }) => `The weather in city is ${city}`,
+          execute: ({ city }) => {
+            console.log(city);
+            return `The weather in ${city} is sunny`;
+          },
         }),
       },
     });
 
     return result.textStream;
   }
+
+  @callable()
+  getHistory() {
+    return this.getConversationHistory(50);
+  }
+
 }
 
 export default {
