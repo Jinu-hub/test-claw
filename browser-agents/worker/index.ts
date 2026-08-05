@@ -57,6 +57,21 @@ export class BrowserAgent extends AIChatAgent<Env> {
             return { ok: true };
           },
         }),
+        takeScreenshot: tool({
+          description: "Take a screenshot of the page",
+          inputSchema: z.object({}),
+          execute: async () => {
+            const page = await this.getPage();
+            const buffer = await page.screenshot({ type: "jpeg" });
+            const key = `screenshots/${Date.now()}.png`;
+            await this.env.FILES.put(key, buffer, {
+              httpMetadata: {
+                contentType: "image/jpeg",
+              },
+            });
+            return { ok: true, filename: key };
+          },
+        }),
       },
       stopWhen: isLoopFinished(),
     });
@@ -67,6 +82,18 @@ export class BrowserAgent extends AIChatAgent<Env> {
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname.startsWith("/screenshots")) {
+      const key = url.pathname.slice(1);
+      const file = await env.FILES.get(key);
+      if (file) {
+        return new Response(file.body, {
+          headers: {
+            "Content-Type": file.httpMetadata?.contentType ?? "image/png",
+          },
+        });
+      }
+    }
     return (
       (await routeAgentRequest(request, env)) ??
       new Response(null, { status: 404 })
