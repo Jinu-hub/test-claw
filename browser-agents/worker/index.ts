@@ -5,20 +5,59 @@ import { createWorkersAI } from "workers-ai-provider";
 import puppeteer, { type Page, type Browser } from "@cloudflare/puppeteer";
 import z from "zod";
 
-
-export class BrowserAgent extends AIChatAgent<Env> {
+export type BrowserAgentState = {
+  liveUrl: string | null;
+};
+export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
+  initialState = {
+    liveUrl: null,
+  };
 
   browser: Browser | null = null;
   page: Page | null = null;
   async getPage() {
     if (this.page && this.browser?.connected) return this.page;
-    this.browser = await puppeteer.launch(this.env.BROWSER);
+    this.browser = await puppeteer.launch(this.env.BROWSER, {
+      recording: true,
+    });
     this.page = await this.browser.newPage();
     await this.page.setViewport({
       width: 1280,
       height: 720,
     });
+    await this.getLiveViewUrl();
     return this.page;
+  }
+
+  async getLiveViewUrl() {
+    if (!this.browser) return;
+
+    const sessionId = this.browser.sessionId();
+
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${this.env.ACCOUNT_ID}/browser-rendering/devtools/browser/${sessionId}/json/list`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.env.API_TOKEN}`,
+        },
+      },
+    );
+
+    const data = (await res.json()) as {
+      type: string;
+      devtoolsFrontendUrl: string;
+    }[];
+
+    const target = data.find((t) => t.type === "page");
+    if (!target) {
+      throw new Error("No page target found for DevTools URL");
+    }
+    const url = target.devtoolsFrontendUrl;
+    const liveUrl = new URL(url);
+    liveUrl.searchParams.set("mode", "tab");
+    this.setState({
+      liveUrl: liveUrl.toString(),
+    });
   }
 
   async closeBrowser() {
