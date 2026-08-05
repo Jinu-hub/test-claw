@@ -3,7 +3,7 @@ import { useAgent } from "agents/react";
 import { useState } from "react";
 
 function App() {
-  const [history, setHistory] = useState<
+  const [_history, setHistory] = useState<
     {
       role: VoiceRole;
       content: string;
@@ -47,7 +47,7 @@ function App() {
             </span>
           </div>
 
-          <div className="mt-4 min-h-[200px] space-y-1 rounded-xl border border-zinc-100 bg-zinc-50 p-4">
+          <div className="mt-4 min-h-50 space-y-1 rounded-xl border border-zinc-100 bg-zinc-50 p-4">
             {/*{history.map((message, index) => (
               <div key={index} className="flex items-center gap-2 text-sm">
                 <span
