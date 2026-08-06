@@ -1,26 +1,35 @@
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { useAgent } from "agents/react";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
+import { useState } from "react";
+import type { Orchestrator, OrchestratorState } from "../worker/index";
 
 function App() {
-  const agent = useAgent({ agent: "Orchestrator" });
+  const [query, setQuery] = useState<string | null>(null);
+
+  const agent = useAgent<Orchestrator, OrchestratorState>({
+    agent: "Orchestrator",
+  });
 
   const {
     messages,
-    sendMessage,
     clearHistory,
     status,
     stop,
     addToolApprovalResponse,
   } = useAgentChat({ agent });
 
-  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
+  const orchestratorStatus = agent.state?.status ?? "idle";
+
+  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
     const message = formData.get("input") as string;
     if (!message?.trim()) return;
-    sendMessage({ text: message });
-    e.currentTarget.reset();
+    form.reset();
+    setQuery(message);
+    await agent.stub.research(message);
   };
 
   function renderMessage(msg: UIMessage) {
@@ -157,14 +166,77 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-6 pb-24">
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-6 pb-24">
+        {query && (
+          <section className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <div className="flex items-center gap-2">
+              <span
+                className={`relative inline-flex h-2 w-2 rounded-full ${
+                  orchestratorStatus === "planning"
+                    ? "bg-amber-500"
+                    : "bg-emerald-500"
+                }`}
+              >
+                {orchestratorStatus === "planning" && (
+                  <span className="absolute inset-0 animate-ping rounded-full bg-amber-500 opacity-75" />
+                )}
+              </span>
+              <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                {orchestratorStatus === "planning"
+                  ? "Planning research"
+                  : "Idle"}
+              </span>
+            </div>
+            <p className="mt-2 text-xs uppercase tracking-wide text-zinc-400">
+              Query
+            </p>
+            <p className="mt-1 text-sm font-medium text-zinc-900">{query}</p>
+
+            {agent.state?.plan && agent.state.plan.length > 0 && (
+              <>
+                <p className="mt-4 text-xs uppercase tracking-wide text-zinc-400">
+                  Research plan
+                </p>
+                <ol className="mt-2 space-y-1.5">
+                  {agent.state.plan.map((q, i) => {
+                    const activity = agent.state?.activity?.[`researcher-${i}`];
+                    return (
+                      <li
+                        key={i}
+                        className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm"
+                      >
+                        <div className="flex gap-2">
+                          <span className="font-mono text-xs text-zinc-400">
+                            {i + 1}
+                          </span>
+                          <span className="flex-1 text-zinc-700">{q}</span>
+                        </div>
+                        {activity && (
+                          <div className="mt-1.5 flex items-center gap-1.5 pl-6">
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-500">
+                              <span className="absolute inset-0 animate-ping rounded-full bg-amber-500 opacity-75" />
+                            </span>
+                            <span className="truncate text-xs text-zinc-500">
+                              {activity}
+                            </span>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ol>
+              </>
+            )}
+          </section>
+        )}
+
         <div className="flex-1 space-y-4">
           {messages.length === 0 && (
             <div className="flex h-full min-h-[40vh] items-center justify-center text-sm text-zinc-400">
               Say something to get started.
             </div>
           )}
-          {messages.map((message: UIMessage) => {
+          {messages.map((message) => {
             const isUser = message.role === "user";
             return (
               <div

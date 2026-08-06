@@ -2,6 +2,7 @@ import { AIChatAgent } from "@cloudflare/ai-chat";
 import { Agent, callable, routeAgentRequest } from "agents";
 import { generateText, isLoopFinished, Output, tool } from "ai";
 import Cloudflare from "cloudflare";
+import { RpcTarget } from "cloudflare:workers";
 import { createWorkersAI } from "workers-ai-provider";
 import z from "zod";
 
@@ -28,7 +29,7 @@ export class Researcher extends Agent<Env> {
     });
   }
 
-  async research(query: string) {
+  async research(query: string, progressReporter: ProgressReporter) {
     const workersAi = createWorkersAI({ binding: this.env.AI });
 
     const { text } = await generateText({
@@ -38,13 +39,13 @@ export class Researcher extends Agent<Env> {
         searchWeb: tool({
           description:
             "Search the web via DuckDuckGo. Returns the SERP as markdown.",
-          inputSchema: z.object({ query: z.string() }),
-          execute: async ({ query }) => {
-            console.log("searching for", query);
+          inputSchema: z.object({ searchQuery: z.string() }),
+          execute: async ({ searchQuery }) => {
+            progressReporter.report(`Searching for ${searchQuery}`);
             const markdown =
               await this.makeCloudflare().browserRendering.markdown.create({
                 account_id: this.env.ACCOUNT_ID,
-                url: `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+                url: `https://html.duckduckgo.com/html/?q=${encodeURIComponent(searchQuery)}`,
               });
             return { ok: true, results: markdown };
           },
@@ -53,7 +54,7 @@ export class Researcher extends Agent<Env> {
           description: "Fetch a URL and return clean markdown via Browser Run.",
           inputSchema: z.object({ url: z.url() }),
           execute: async ({ url }) => {
-            console.log("reading ", url);
+            progressReporter.report(`Reading ${url}`);
             const markdown =
               await this.makeCloudflare().browserRendering.markdown.create({
                 account_id: this.env.ACCOUNT_ID,
@@ -84,7 +85,29 @@ export type OrchestratorState = {
   status: "idle" | "planning";
   plan?: string[];
   findings?: Finding[];
+  activity?: Record<string, string>;
 };
+
+class ProgressReporter extends RpcTarget {
+  father: Orchestrator;
+  childName: string;
+
+  constructor(father: Orchestrator, childName: string) {
+    super();
+    this.father = father;
+    this.childName = childName;
+  }
+
+  report(activity: string) {
+    this.father.setState({
+      ...this.father.state,
+      activity: {
+        ...this.father.state.activity,
+        [this.childName]: activity,
+      },
+    });
+  }
+}
 
 export class Orchestrator extends AIChatAgent<Env, OrchestratorState> {
   initialState: OrchestratorState = {
@@ -128,11 +151,10 @@ export class Orchestrator extends AIChatAgent<Env, OrchestratorState> {
 
     const outputs = await Promise.all(
       queries.map(async (query, index) => {
-        const stubAgent = await this.subAgent(
-          Researcher,
-          `researcher-${index}`,
-        );
-        const result = await stubAgent.research(query);
+        const stubAgentName = `researcher-${index}`;
+        const stubAgent = await this.subAgent(Researcher, stubAgentName);
+        const reporter = new ProgressReporter(this, stubAgentName);
+        const result = await stubAgent.research(query, reporter);
         return result;
       }),
     );
