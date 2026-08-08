@@ -12,12 +12,18 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@ai-sdk/react": "^4.0.61",
+    "@cloudflare/ai-chat": "^0.10.1",
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@tailwindcss/vite": "^4.3.0",
-    "agents": "^0.12.4",
+    "agents": "^0.20.1",
+    "ai": "^6.0.182",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tailwindcss": "^4.3.0",
+    "workers-ai-provider": "^3.1.14",
     "zod": "^4.4.3"
   },
   "devDependencies": {
