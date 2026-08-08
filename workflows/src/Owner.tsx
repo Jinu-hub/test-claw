@@ -26,7 +26,6 @@ export function Owner() {
   const [state, setState] = useState<State>({ orders: {} });
   const agent = useAgent({
     agent: "RestaurantAgent",
-    name: "moa-pizza",
     query: { role: "owner" },
     onStateUpdate: setState,
   });
