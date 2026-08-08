@@ -1,4 +1,9 @@
-import { Agent, callable, routeAgentRequest } from "agents";
+import {
+  Agent,
+  callable,
+  routeAgentRequest,
+  type FiberRecoveryContext,
+} from "agents";
 import { generateText } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import type { NovelState } from "./types";
@@ -24,38 +29,53 @@ export class NovelistAgent extends Agent<Env, NovelState> {
       chapters: [],
     });
 
+    await this.writeChapters();
+  }
+
+  async writeChapters() {
     const workersai = createWorkersAI({ binding: this.env.AI });
     const model = workersai("@cf/meta/llama-4-scout-17b-16e-instruct");
 
-    while (this.state.currentChapter <= TOTAL_CHAPTERS) {
-      const i = this.state.currentChapter;
-      const previousChapters = this.state.chapters
-        .map((chapter, index) => `Chapter ${index + 1}:\n${chapter}`)
-        .join("\n\n");
+    await this.runFiber("write-novel", async (_ctx) => {
+      // (ctx as any).stash = { state: this.state };
+      // console.log("writeChapters", ctx.id);
+      while (this.state.currentChapter <= TOTAL_CHAPTERS) {
+        const i = this.state.currentChapter;
+        const previousChapters = this.state.chapters
+          .map((chapter, index) => `Chapter ${index + 1}:\n${chapter}`)
+          .join("\n\n");
 
-      const { text } = await generateText({
-        model,
-        prompt: `
-        You are writing a 5-chapter novel about: ${premise}
+        const { text } = await generateText({
+          model,
+          prompt: `
+          You are writing a 5-chapter novel about: ${this.state.premise}
 
-        Previous chapters: ${previousChapters}
+          Previous chapters: ${previousChapters}
 
-        Write Chapter ${i} in around 150 words. Just the prose — no chapter title, no "Chapter X" header.`,
-      });
+          Write Chapter ${i} in around 150 words. Just the prose — no chapter title, no "Chapter X" header.`,
+        });
 
-      this.setState({
-        ...this.state,
-        chapters: [...this.state.chapters, text.trim()],
-        currentChapter: i + 1,
-      });
-    }
+        this.setState({
+          ...this.state,
+          chapters: [...this.state.chapters, text.trim()],
+          currentChapter: i + 1,
+        });
+      }
 
-    this.setState({ ...this.state, status: "done" });
+      this.setState({ ...this.state, status: "done" });
+    });
   }
 
   @callable()
   async resetNovel() {
     this.setState(this.initialState);
+  }
+
+  async onFiberRecovered(ctx: FiberRecoveryContext) {
+    if (ctx.name === "write-novel") {
+      this.writeChapters();
+      //(ctx as any).snapshot.restore(this.state);
+    }
   }
 }
 
