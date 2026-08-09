@@ -1,6 +1,8 @@
-import { Think } from "@cloudflare/think";
+import { Session, Think } from "@cloudflare/think";
 import { callable, routeAgentRequest } from "agents";
+import { R2SkillProvider } from "agents/experimental/memory/session";
 import { tool, type LanguageModel } from "ai";
+import { createExtensionTools } from "@cloudflare/think/tools/extensions";
 import { createWorkersAI } from "workers-ai-provider";
 import z from "zod";
 
@@ -13,6 +15,8 @@ type State = {
   }[];
 };
 export class ThinkAgent extends Think<Env, State> {
+  extensionLoader = this.env.LOADER;
+
   initialState: State = {
     files: [],
   };
@@ -23,6 +27,7 @@ export class ThinkAgent extends Think<Env, State> {
 
   async onChatResponse() {
     await this.refreshFiles();
+    await this.session.refreshSystemPrompt();
   }
 
   async refreshFiles() {
@@ -51,12 +56,32 @@ export class ThinkAgent extends Think<Env, State> {
         }),
         execute: ({ city }) => `The ${city} is sunny`,
       }),
+      ...createExtensionTools({ manager: this.extensionManager! }),
     };
   }
 
   @callable()
   async readWorkspaceFile(path: string) {
     return await this.workspace.readFile(path);
+  }
+
+  configureSession(session: Session) {
+    return session
+      .withContext("soul", {
+        provider: {
+          async get() {
+            return "You are very helpful but a big sarcastic.";
+          },
+        },
+      })
+      .withContext("memory", {
+        description: "Things to remember about the user across convos.",
+        maxTokens: 10_000,
+      })
+      .withContext("skills", {
+        description: "Reference documents on demand.",
+        provider: new R2SkillProvider(this.env.SKILLS, { prefix: "skills/" }),
+      });
   }
 }
 
