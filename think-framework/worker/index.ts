@@ -62,6 +62,7 @@ export class ThinkAgent extends Think<Env, State> {
 
   @callable()
   async readWorkspaceFile(path: string) {
+    //await this.extensionManager?.getTools();
     return await this.workspace.readFile(path);
   }
 
