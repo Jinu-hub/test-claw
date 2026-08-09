@@ -1,9 +1,49 @@
-import { useAgentChat } from "@cloudflare/ai-chat/react";
+import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
+import { useState } from "react";
+import type { ThinkAgent } from "../worker";
+
+type FileEntry = {
+  path: string;
+  type: "file" | "directory";
+  size: number;
+  updatedAt: number;
+};
+
+type AgentState = { files: FileEntry[] };
+
+type AgentStub = {
+  readWorkspaceFile: (path: string) => Promise<string | null>;
+};
 
 function App() {
-  const agent = useAgent({ agent: "ThinkAgent" });
+  const [agentState, setAgentState] = useState<AgentState>({ files: [] });
+  const [openFile, setOpenFile] = useState<{
+    path: string;
+    content: string | null;
+  } | null>(null);
+  const [loadingFile, setLoadingFile] = useState(false);
+
+  const agent = useAgent<ThinkAgent, AgentState>({
+    agent: "ThinkAgent",
+    onStateUpdate: setAgentState,
+  });
+
+  const handleFileClick = async (path: string) => {
+    setLoadingFile(true);
+    setOpenFile({ path, content: null });
+    const stub = agent.stub as AgentStub;
+    const content = await stub.readWorkspaceFile(path);
+    setOpenFile({ path, content });
+    setLoadingFile(false);
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  };
 
   const {
     messages,
@@ -157,14 +197,78 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-6 pb-24">
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-6 pb-24">
+        <section className="rounded-2xl border border-zinc-200 bg-white p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold tracking-tight">Workspace</h2>
+            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
+              {agentState.files.length}
+            </span>
+          </div>
+          {agentState.files.length === 0 ? (
+            <p className="mt-2 text-sm text-zinc-400">No files yet.</p>
+          ) : (
+            <ul className="mt-3 space-y-1">
+              {agentState.files.map((file) => (
+                <li key={file.path}>
+                  <button
+                    type="button"
+                    onClick={() => handleFileClick(file.path)}
+                    disabled={file.type === "directory"}
+                    className="flex w-full items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-left text-sm transition enabled:hover:bg-zinc-100 disabled:cursor-default"
+                  >
+                    <span className="text-zinc-400">
+                      {file.type === "directory" ? "📁" : "📄"}
+                    </span>
+                    <span className="flex-1 truncate font-mono text-xs text-zinc-700">
+                      {file.path}
+                    </span>
+                    {file.type === "file" && (
+                      <span className="shrink-0 text-xs text-zinc-400">
+                        {formatSize(file.size)}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {openFile && (
+            <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-mono text-xs text-zinc-700">
+                  {openFile.path}
+                </span>
+                <button
+                  onClick={() => setOpenFile(null)}
+                  className="shrink-0 rounded-md px-2 py-0.5 text-xs text-zinc-500 transition hover:bg-zinc-200 hover:text-zinc-900"
+                >
+                  Close
+                </button>
+              </div>
+              {loadingFile ? (
+                <p className="mt-2 text-xs text-zinc-400">Loading…</p>
+              ) : openFile.content === null ? (
+                <p className="mt-2 text-xs text-zinc-400">
+                  (File is empty or could not be read.)
+                </p>
+              ) : (
+                <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap text-xs text-zinc-700">
+                  {openFile.content}
+                </pre>
+              )}
+            </div>
+          )}
+        </section>
+
         <div className="flex-1 space-y-4">
           {messages.length === 0 && (
             <div className="flex h-full min-h-[40vh] items-center justify-center text-sm text-zinc-400">
               Say something to get started.
             </div>
           )}
-          {messages.map((message: UIMessage) => {
+          {messages.map((message) => {
             const isUser = message.role === "user";
             return (
               <div
