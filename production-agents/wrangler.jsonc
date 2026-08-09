@@ -39,7 +39,24 @@
 				"ChatAgent"
 			]
 		}
-	]
+	],
+	/*
+	"env": 	{
+		"dev": {
+			"name": "production-agents",
+			"vars": {
+				"MODEL_NAME": "@cf/moonshotai/kimi-k2.5"
+			}
+		},
+		"prod": {
+			"name": "production-agents-prod",
+			"vars": {
+				"MODEL_NAME": "@cf/moonshotai/kimi-k2.5-pro"
+			}
+		}
+	}
+	*/
+	
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
