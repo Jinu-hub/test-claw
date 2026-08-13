@@ -4,17 +4,25 @@
  * Server tools: `src/tools/*.ts`, composed in `src/tools/index.ts`
  * Non-tool capabilities: `src/features/` (MCP, images)
  * Client UI: gated in `src/app.tsx` (MCP panel, image attachments, example prompts)
+ *
+ * Phase 1: demo tools stay implemented but off. Reality prompts are always shown.
  */
 export const featureFlags = {
-  weather: true,
-  timezone: true,
-  calculate: true,
-  schedule: true,
-  mcp: true,
-  images: true
+  weather: false,
+  timezone: false,
+  calculate: false,
+  schedule: false,
+  mcp: false,
+  images: false
 } as const;
 
 export type FeatureId = keyof typeof featureFlags;
+
+const REALITY_EXAMPLE_PROMPTS = [
+  "이 서비스가 뭐야?",
+  "Cloudflare Agents를 추가해줘.",
+  "오늘 뭐 바뀐 거 있어?"
+];
 
 const examplePromptsByFeature: Record<FeatureId, string[]> = {
   weather: ["What's the weather in Paris?"],
@@ -26,7 +34,9 @@ const examplePromptsByFeature: Record<FeatureId, string[]> = {
 };
 
 export function getExamplePrompts(): string[] {
-  return (Object.keys(featureFlags) as FeatureId[])
+  const featurePrompts = (Object.keys(featureFlags) as FeatureId[])
     .filter((id) => featureFlags[id])
     .flatMap((id) => examplePromptsByFeature[id]);
+
+  return [...REALITY_EXAMPLE_PROMPTS, ...featurePrompts];
 }

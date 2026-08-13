@@ -165,7 +165,7 @@ function Chat() {
             </h1>
             <Badge variant="secondary">
               <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
-              AI Chat
+              Phase 1
             </Badge>
           </div>
           <div className="flex items-center gap-3">
@@ -212,28 +212,37 @@ function Chat() {
           {messages.length === 0 && (
             <Empty
               icon={<ChatCircleDotsIcon size={32} />}
-              title="Start a conversation"
+              title="What changed in the reality you already knew?"
               contents={
-                examplePrompts.length > 0 ? (
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {examplePrompts.map((prompt) => (
-                      <Button
-                        key={prompt}
-                        variant="outline"
-                        size="sm"
-                        disabled={isStreaming}
-                        onClick={() => {
-                          sendMessage({
-                            role: "user",
-                            parts: [{ type: "text", text: prompt }]
-                          });
-                        }}
-                      >
-                        {prompt}
-                      </Button>
-                    ))}
+                <div className="flex flex-col items-center gap-4">
+                  <div className="max-w-md text-center">
+                    <Text variant="secondary">
+                      Not a daily news recap. This agent will remember a topic
+                      and report only meaningful changes. Target tracking is not
+                      implemented yet.
+                    </Text>
                   </div>
-                ) : undefined
+                  {examplePrompts.length > 0 ? (
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {examplePrompts.map((prompt) => (
+                        <Button
+                          key={prompt}
+                          variant="outline"
+                          size="sm"
+                          disabled={isStreaming}
+                          onClick={() => {
+                            sendMessage({
+                              role: "user",
+                              parts: [{ type: "text", text: prompt }]
+                            });
+                          }}
+                        >
+                          {prompt}
+                        </Button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               }
             />
           )}
@@ -434,7 +443,7 @@ function Chat() {
               placeholder={
                 featureFlags.images && attachments.length > 0
                   ? "Add a message or send images..."
-                  : "Send a message..."
+                  : "Ask what changed, or name a topic to watch..."
               }
               disabled={!connected || isStreaming}
               rows={1}

@@ -1,16 +1,15 @@
 import { featureFlags } from "../feature-flags";
 import { imagesPrompt } from "../features/images";
 import type { McpToolHost } from "../features/mcp";
+import { REALITY_SYSTEM_PROMPT } from "../prompts";
 import { calculatePrompt, createCalculateTools } from "./calculate";
 import { createScheduleTools, getSchedulePromptFragment } from "./schedule";
 import { createTimezoneTools, timezonePrompt } from "./timezone";
 import { createWeatherTools, weatherPrompt } from "./weather";
 import type { ScheduleToolHost } from "./shared";
 
-const BASE_PROMPT = "You are a helpful assistant.";
-
 export function composeSystemPrompt(): string {
-  const parts = [BASE_PROMPT];
+  const parts = [REALITY_SYSTEM_PROMPT];
 
   if (featureFlags.images) parts.push(imagesPrompt);
   if (featureFlags.weather) parts.push(weatherPrompt);
