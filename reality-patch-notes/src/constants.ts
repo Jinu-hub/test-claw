@@ -1,0 +1,1 @@
+export const MAX_PERSISTED_MESSAGES = 100;
