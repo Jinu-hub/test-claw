@@ -1,3 +1,4 @@
+import { deleteEvidenceObjects } from "./evidence";
 import { currentContextObjectKey } from "./markdown";
 import {
   getCurrentContext,
@@ -298,6 +299,7 @@ export async function removeTarget(
   }
   const target = resolved.target;
 
+  await deleteEvidenceObjects(store, target.id);
   store.sql`DELETE FROM patches WHERE target_id = ${target.id}`;
   store.sql`DELETE FROM evidences WHERE target_id = ${target.id}`;
   store.sql`DELETE FROM scan_runs WHERE target_id = ${target.id}`;

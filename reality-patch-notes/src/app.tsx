@@ -176,7 +176,7 @@ function Chat() {
             </h1>
             <Badge variant="secondary">
               <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
-              Phase 4
+              Phase 5
             </Badge>
           </div>
           <div className="flex items-center gap-3">
@@ -228,9 +228,8 @@ function Chat() {
                 <div className="flex flex-col items-center gap-4">
                   <div className="max-w-md text-center">
                     <Text variant="secondary">
-                      Chat can manage targets and initialize Reality for
-                      Cloudflare Agents from canonical docs. Scanning for
-                      patches comes later.
+                      Reality remembers sources as Evidence. Ask for URLs, or
+                      re-collect canonical docs — identical hashes are skipped.
                     </Text>
                   </div>
                   {examplePrompts.length > 0 ? (
@@ -454,7 +453,7 @@ function Chat() {
               placeholder={
                 featureFlags.images && attachments.length > 0
                   ? "Add a message or send images..."
-                  : "Initialize Reality, ask about a section, or manage targets..."
+                  : "Ask for evidence, re-collect sources, or read Reality..."
               }
               disabled={!connected || isStreaming}
               rows={1}

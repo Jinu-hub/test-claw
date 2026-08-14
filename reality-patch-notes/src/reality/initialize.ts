@@ -3,6 +3,7 @@ import { generateText } from "ai";
 import type { FetchedSource } from "./fetch";
 import { fetchSourceText } from "./fetch";
 import { getSourcePack, type SectionBlueprint } from "./sources";
+import { persistFetchedEvidence } from "./evidence";
 import {
   getCurrentContext,
   parseWatchIntent,
@@ -20,6 +21,8 @@ export type InitializeRealityResult = {
   sourcesFetched: number;
   sourcesFailed: number;
   sourceUrls: string[];
+  evidenceStored: number;
+  evidenceSkipped: number;
 };
 
 function formatSourcesForPrompt(sources: FetchedSource[]): string {
@@ -174,6 +177,12 @@ export async function buildInitialRealityContext(input: {
     openQuestions
   };
 
+  const evidence = await persistFetchedEvidence(
+    input.store,
+    input.target.id,
+    fetched
+  );
+
   const objectKey = await putCurrentContext(input.store, context);
   upsertTarget(input.store, {
     id: input.target.id,
@@ -193,6 +202,8 @@ export async function buildInitialRealityContext(input: {
     sectionKeys: sections.map((section) => section.key),
     sourcesFetched: okSources.length,
     sourcesFailed: fetched.length - okSources.length,
-    sourceUrls: okSources.map((source) => source.url)
+    sourceUrls: okSources.map((source) => source.url),
+    evidenceStored: evidence.stored,
+    evidenceSkipped: evidence.skipped
   };
 }

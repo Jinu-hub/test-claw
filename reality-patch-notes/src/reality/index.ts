@@ -5,6 +5,15 @@ export {
 } from "./fixture";
 export { fetchSourceText, htmlToText, type FetchedSource } from "./fetch";
 export {
+  collectCanonicalEvidence,
+  findEvidenceByHash,
+  hashContent,
+  ingestFetchedEvidence,
+  listEvidences,
+  persistFetchedEvidence,
+  summarizeEvidence
+} from "./evidence";
+export {
   buildInitialRealityContext,
   isRealityInitialized,
   type InitializeRealityResult

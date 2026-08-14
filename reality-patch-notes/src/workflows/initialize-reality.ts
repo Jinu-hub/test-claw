@@ -25,6 +25,8 @@ type BuildResult = {
   sourcesFetched: number;
   sourcesFailed: number;
   sourceUrls: string[];
+  evidenceStored: number;
+  evidenceSkipped: number;
 };
 
 export class InitializeRealityWorkflow extends AgentWorkflow<
@@ -71,7 +73,9 @@ export class InitializeRealityWorkflow extends AgentWorkflow<
         sectionKeys: [...value.sectionKeys].map(String),
         sourcesFetched: Number(value.sourcesFetched),
         sourcesFailed: Number(value.sourcesFailed),
-        sourceUrls: [...value.sourceUrls].map(String)
+        sourceUrls: [...value.sourceUrls].map(String),
+        evidenceStored: Number(value.evidenceStored),
+        evidenceSkipped: Number(value.evidenceSkipped)
       };
     });
 

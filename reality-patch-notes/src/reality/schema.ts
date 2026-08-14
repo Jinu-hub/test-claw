@@ -60,4 +60,9 @@ export function ensureRealitySchema(sql: SqlExecutor): void {
       notes TEXT
     )
   `;
+
+  sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_evidences_target_hash
+    ON evidences(target_id, content_hash)
+  `;
 }
