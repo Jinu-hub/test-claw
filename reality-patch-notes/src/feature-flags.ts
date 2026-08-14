@@ -5,7 +5,7 @@
  * Non-tool capabilities: `src/features/` (MCP, images)
  * Client UI: gated in `src/app.tsx` (MCP panel, image attachments, example prompts)
  *
- * Phase 1: demo tools stay implemented but off. Reality prompts are always shown.
+ * Phase 1–2: demo tools stay implemented but off. Reality prompts/tools are always on.
  */
 export const featureFlags = {
   weather: false,
@@ -19,9 +19,9 @@ export const featureFlags = {
 export type FeatureId = keyof typeof featureFlags;
 
 const REALITY_EXAMPLE_PROMPTS = [
-  "지금 저장된 Target이 뭐야?",
-  "Cloudflare Agents Reality Context 보여줘.",
-  "Sandbox 섹션이 뭐라고 되어 있어?"
+  "Bitcoin도 추가해줘.",
+  "가격 변화는 관심 없고 ETF, 규제만 봐줘.",
+  "지금 저장된 Target이 뭐야?"
 ];
 
 const examplePromptsByFeature: Record<FeatureId, string[]> = {

@@ -19,6 +19,21 @@ export {
   upsertTarget,
   type RealityStore
 } from "./store";
+export {
+  addTarget,
+  allocateTargetId,
+  createUninitializedContext,
+  findTargetByName,
+  normalizeIntentList,
+  normalizeIntentTerm,
+  removeTarget,
+  resolveTarget,
+  resolveTargetOrSingle,
+  slugifyTargetId,
+  summarizeTarget,
+  setWatchIntent,
+  updateWatchIntent
+} from "./targets";
 export type {
   ContextSection,
   EvidenceRow,

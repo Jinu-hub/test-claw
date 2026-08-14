@@ -165,7 +165,7 @@ function Chat() {
             </h1>
             <Badge variant="secondary">
               <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
-              Phase 2
+              Phase 3
             </Badge>
           </div>
           <div className="flex items-center gap-3">
@@ -217,9 +217,9 @@ function Chat() {
                 <div className="flex flex-col items-center gap-4">
                   <div className="max-w-md text-center">
                     <Text variant="secondary">
-                      Memory storage is ready. A fixture Cloudflare Agents
-                      target is seeded in SQLite + R2. Ask what is stored or
-                      read its Reality Context. Creating targets comes next.
+                      Chat can add, remove, and tune watch targets. New targets
+                      get an uninitialized Reality template — research comes in
+                      the next phase.
                     </Text>
                   </div>
                   {examplePrompts.length > 0 ? (
@@ -443,7 +443,7 @@ function Chat() {
               placeholder={
                 featureFlags.images && attachments.length > 0
                   ? "Add a message or send images..."
-                  : "Ask what changed, or name a topic to watch..."
+                  : "Add a target, change watch intent, or ask what is stored..."
               }
               disabled={!connected || isStreaming}
               rows={1}
