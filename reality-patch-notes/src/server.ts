@@ -19,6 +19,7 @@ import {
   getTarget,
   isRealityInitialized,
   listTargets,
+  parseScheduledTaskPayload,
   scanTarget,
   seedFixtureIfNeeded,
   type RealityStore,
@@ -268,12 +269,38 @@ export class ChatAgent extends AIChatAgent<Env> {
     return result.toUIMessageStreamResponse();
   }
 
-  async executeTask(description: string, _task: Schedule<string>) {
-    console.log(`Executing scheduled task: ${description}`);
+  async executeTask(payload: unknown, _task: Schedule<unknown>) {
+    const parsed = parseScheduledTaskPayload(payload);
+
+    if (parsed.kind === "scan-target") {
+      console.log(
+        `Executing scheduled scan for ${parsed.targetId} (${parsed.name ?? "target"})`
+      );
+      try {
+        await this.startScanTarget(parsed.targetId);
+      } catch (error) {
+        this.broadcast(
+          JSON.stringify({
+            type: REALITY_SCANNED_TYPE,
+            targetId: parsed.targetId,
+            name: parsed.name ?? "",
+            patchesCreated: 0,
+            patchedSectionKeys: [],
+            skipped: 0,
+            llmCalled: false,
+            message: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          })
+        );
+      }
+      return;
+    }
+
+    console.log(`Executing scheduled task: ${String(payload)}`);
     this.broadcast(
       JSON.stringify({
         type: SCHEDULED_TASK_TYPE,
-        description,
+        description: String(payload),
         timestamp: new Date().toISOString()
       })
     );

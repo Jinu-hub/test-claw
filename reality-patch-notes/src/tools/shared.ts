@@ -140,9 +140,14 @@ export type ScheduleToolHost = {
   schedule(
     when: Date | number | string,
     callback: "executeTask",
-    payload: string,
+    payload: unknown,
     options?: { idempotent?: boolean }
-  ): unknown;
+  ): Promise<{ id: string } & Record<string, unknown>>;
+  listSchedules(criteria?: {
+    id?: string;
+    type?: "scheduled" | "delayed" | "cron" | "interval";
+  }): Promise<unknown[]>;
+  /** @deprecated Prefer listSchedules */
   getSchedules(): unknown[];
-  cancelSchedule(id: string): unknown;
+  cancelSchedule(id: string): Promise<boolean>;
 };

@@ -29,8 +29,18 @@ export {
   insertPatch,
   insertScanRun,
   listPatches,
+  queryPatches,
+  type PatchEvidenceRef,
+  type PatchQuery,
   type PatchSummary
 } from "./patches";
+export {
+  createScheduledScanPayload,
+  encodeScheduledScanPayload,
+  isScheduledScanPayload,
+  parseScheduledTaskPayload,
+  type ScheduledScanPayload
+} from "./schedule-payload";
 export {
   injectSandboxSessionTestEvidence,
   isIgnoredByWatchIntent,

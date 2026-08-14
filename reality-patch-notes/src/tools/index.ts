@@ -8,13 +8,18 @@ import {
   realityPrompt,
   type RealityToolHost
 } from "./reality";
+import {
+  createRealityScheduleTools,
+  realitySchedulePrompt,
+  type RealityScheduleToolHost
+} from "./reality-schedule";
 import { createScheduleTools, getSchedulePromptFragment } from "./schedule";
 import { createTimezoneTools, timezonePrompt } from "./timezone";
 import { createWeatherTools, weatherPrompt } from "./weather";
 import type { ScheduleToolHost } from "./shared";
 
 export function composeSystemPrompt(): string {
-  const parts = [REALITY_SYSTEM_PROMPT, realityPrompt];
+  const parts = [REALITY_SYSTEM_PROMPT, realityPrompt, realitySchedulePrompt];
 
   if (featureFlags.images) parts.push(imagesPrompt);
   if (featureFlags.weather) parts.push(weatherPrompt);
@@ -26,10 +31,14 @@ export function composeSystemPrompt(): string {
 }
 
 export function collectServerTools(
-  agent: ScheduleToolHost & McpToolHost & RealityToolHost
+  agent: ScheduleToolHost &
+    McpToolHost &
+    RealityToolHost &
+    RealityScheduleToolHost
 ) {
   return {
     ...createRealityTools(agent),
+    ...createRealityScheduleTools(agent),
     ...(featureFlags.mcp ? agent.mcp.getAITools() : {}),
     ...(featureFlags.weather ? createWeatherTools() : {}),
     ...(featureFlags.timezone ? createTimezoneTools() : {}),

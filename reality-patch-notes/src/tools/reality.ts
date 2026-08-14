@@ -9,9 +9,9 @@ import {
   injectSandboxSessionTestEvidence,
   isRealityInitialized,
   listEvidences,
-  listPatches,
   listTargets,
   parseRealityContext,
+  queryPatches,
   removeTarget,
   resolveTargetOrSingle,
   setWatchIntent,
@@ -35,15 +35,16 @@ export type RealityToolHost = {
 const stringList = z.array(z.string().min(1)).optional();
 const requiredStringList = z.array(z.string().min(1)).min(1);
 
-export const realityPrompt = `Target management tools (Phase 6):
+export const realityPrompt = `Target management tools (Phase 7):
 - listTargets / addTarget / removeTarget
 - setWatchIntent / updateWatchIntent
 - getReality
 - initializeReality ← build initial Reality Context from canonical docs (Workflow)
 - getEvidence / collectEvidence
 - scanTarget ← fetch, skip duplicate hashes, compare new evidence, patch changed sections (Workflow)
-- getPatches ← list stored patches (before / after / evidence)
-- injectTestEvidence ← Phase 6 verification helper (sandbox 10min → 30min)
+- getPatches ← list/filter patches (before / after / evidence URLs)
+- scheduleScan / listScheduledScans / cancelScheduledScan
+- injectTestEvidence ← verification helper (sandbox 10min → 30min)
 
 Mandatory tool use:
 - "추가해줘" → addTarget before confirming
@@ -51,16 +52,18 @@ Mandatory tool use:
 - "초기 Reality" / "baseline 만들어" → initializeReality
 - "근거" / "evidence" / "소스가 뭐야" / "왜 그렇게 알아" → getEvidence
 - "같은 문서 다시" / "evidence 수집" / "중복인지 봐" → collectEvidence
-- "스캔" / "다시 봐" / "뭐가 달라졌" / "scan" → scanTarget
-- "패치" / "patch" / "변경 내역" → getPatches
-- "테스트 evidence" / "세션 시간 변경" / "10분" / "30분 넣어" → injectTestEvidence
-- Never claim a scan or patch succeeded unless the matching tool returned it
+- "스캔" / "다시 봐" / "scan" → scanTarget
+- "오늘 뭐 바뀐" / "최근 변화" / "지난달 Sandbox" / "패치" / "변경 내역" → getPatches (use since/until/sectionKey filters)
+- "매일 스캔" / "정기적으로 봐" / "N분마다 스캔" → scheduleScan
+- "예약된 스캔" → listScheduledScans
+- "테스트 evidence" / "세션 시간 변경" → injectTestEvidence
+- Never claim a scan, schedule, or patch unless the matching tool returned it
 - Patch 0 after scanning the same docs is success
 
-Evidence / patch rules:
-- Duplicate content (same SHA-256) is skipped before LLM compare
-- Scans patch existing sections only; they never add section keys
-- injectTestEvidence is synthetic; say so when reporting it`;
+Query rules:
+- Answer change questions from patch history, not from memory
+- Quote evidence URLs only from tool results
+- Empty patch list means no meaningful changes were recorded`;
 
 export function createRealityTools(agent: RealityToolHost) {
   return {
@@ -364,28 +367,47 @@ export function createRealityTools(agent: RealityToolHost) {
 
     getPatches: tool({
       description:
-        "List stored Reality patches for a target, including before/after values and linked evidence ids. REQUIRED when the user asks what changed. An empty list means no meaningful changes have been recorded.",
+        "List or filter stored Reality patches for a target, including before/after values and linked evidence URLs. REQUIRED for change-history questions such as 'what changed today?' or 'Sandbox last month?'. An empty list means no meaningful changes were recorded in that window.",
       inputSchema: z.object({
         targetId: z.string().optional(),
-        name: z.string().optional()
+        name: z.string().optional(),
+        sectionKey: z
+          .string()
+          .optional()
+          .describe("Filter to one section key, e.g. sandbox"),
+        since: z
+          .string()
+          .optional()
+          .describe(
+            "ISO datetime lower bound, e.g. start of today or last month"
+          ),
+        until: z.string().optional().describe("ISO datetime upper bound"),
+        limit: z.number().int().min(1).max(50).optional()
       }),
-      execute: async ({ targetId, name }) => {
+      execute: async ({ targetId, name, sectionKey, since, until, limit }) => {
         const store = agent.getRealityStore();
         const resolved = resolveTargetOrSingle(store, { targetId, name });
         if (!resolved.target) {
           return { found: false as const, message: resolved.message };
         }
 
-        const patches = listPatches(store, resolved.target.id);
+        const patches = queryPatches(store, {
+          targetId: resolved.target.id,
+          sectionKey,
+          since,
+          until,
+          limit
+        });
         return {
           found: true as const,
           targetId: resolved.target.id,
           name: resolved.target.name,
           count: patches.length,
+          filters: { sectionKey, since, until, limit },
           patches,
           message:
             patches.length === 0
-              ? "No patches stored yet. Unchanged scans are success."
+              ? "No patches matched this query. Unchanged scans are success."
               : undefined
         };
       }

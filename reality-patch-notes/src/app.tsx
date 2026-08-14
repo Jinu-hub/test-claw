@@ -192,7 +192,7 @@ function Chat() {
             </h1>
             <Badge variant="secondary">
               <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
-              Phase 6
+              Phase 7
             </Badge>
           </div>
           <div className="flex items-center gap-3">
@@ -244,9 +244,8 @@ function Chat() {
                 <div className="flex flex-col items-center gap-4">
                   <div className="max-w-md text-center">
                     <Text variant="secondary">
-                      Reality remembers current facts and reports only
-                      meaningful changes. Re-scan the same docs for 0 patches,
-                      or inject a test change to see a patch.
+                      Ask what changed, filter by section or time, or schedule
+                      automatic scans. Patch 0 means nothing meaningful changed.
                     </Text>
                   </div>
                   {examplePrompts.length > 0 ? (
