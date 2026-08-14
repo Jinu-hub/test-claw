@@ -10,6 +10,7 @@ export {
   hashContent,
   ingestFetchedEvidence,
   listEvidences,
+  listUncomparedEvidences,
   persistFetchedEvidence,
   summarizeEvidence
 } from "./evidence";
@@ -21,8 +22,21 @@ export {
 export {
   currentContextObjectKey,
   parseRealityContext,
+  replaceSectionBody,
   serializeRealityContext
 } from "./markdown";
+export {
+  insertPatch,
+  insertScanRun,
+  listPatches,
+  type PatchSummary
+} from "./patches";
+export {
+  injectSandboxSessionTestEvidence,
+  isIgnoredByWatchIntent,
+  scanTarget,
+  type ScanTargetResult
+} from "./scan";
 export { ensureRealitySchema, type SqlExecutor } from "./schema";
 export {
   getSourcePack,
@@ -60,6 +74,7 @@ export type {
   ContextSection,
   EvidenceRow,
   PatchRow,
+  PatchType,
   RealityContext,
   ScanRunRow,
   TargetProfile,

@@ -25,6 +25,11 @@
 			"name": "initialize-reality-workflow",
 			"binding": "INITIALIZE_REALITY_WORKFLOW",
 			"class_name": "InitializeRealityWorkflow"
+		},
+		{
+			"name": "scan-target-workflow",
+			"binding": "SCAN_TARGET_WORKFLOW",
+			"class_name": "ScanTargetWorkflow"
 		}
 	],
 	"assets": {

@@ -31,7 +31,7 @@ export function listEvidences(
   return store.sql<EvidenceRow>`
     SELECT
       id, target_id, url, title, publisher, source_type, published_at,
-      observed_at, summary, content_hash, r2_object_key
+      observed_at, summary, content_hash, r2_object_key, compared_at
     FROM evidences
     WHERE target_id = ${targetId}
     ORDER BY observed_at DESC
@@ -46,7 +46,7 @@ export function findEvidenceByHash(
   const rows = store.sql<EvidenceRow>`
     SELECT
       id, target_id, url, title, publisher, source_type, published_at,
-      observed_at, summary, content_hash, r2_object_key
+      observed_at, summary, content_hash, r2_object_key, compared_at
     FROM evidences
     WHERE target_id = ${targetId} AND content_hash = ${contentHash}
     LIMIT 1
@@ -63,10 +63,65 @@ export function summarizeEvidence(row: EvidenceRow) {
     publisher: row.publisher,
     sourceType: row.source_type,
     observedAt: row.observed_at,
+    comparedAt: row.compared_at,
     summary: row.summary,
     contentHash: row.content_hash,
     objectKey: row.r2_object_key
   };
+}
+
+export function listUncomparedEvidences(
+  store: RealityStore,
+  targetId: string
+): EvidenceRow[] {
+  return store.sql<EvidenceRow>`
+    SELECT
+      id, target_id, url, title, publisher, source_type, published_at,
+      observed_at, summary, content_hash, r2_object_key, compared_at
+    FROM evidences
+    WHERE target_id = ${targetId} AND compared_at IS NULL
+    ORDER BY observed_at ASC
+  `;
+}
+
+export function markEvidenceCompared(
+  store: RealityStore,
+  evidenceIds: string[],
+  comparedAt = new Date().toISOString()
+): void {
+  for (const evidenceId of evidenceIds) {
+    store.sql`
+      UPDATE evidences
+      SET compared_at = ${comparedAt}
+      WHERE id = ${evidenceId}
+    `;
+  }
+}
+
+export function markUncomparedEvidenceCompared(
+  store: RealityStore,
+  targetId: string,
+  comparedAt = new Date().toISOString()
+): void {
+  store.sql`
+    UPDATE evidences
+    SET compared_at = ${comparedAt}
+    WHERE target_id = ${targetId} AND compared_at IS NULL
+  `;
+}
+
+export async function loadEvidenceText(
+  store: RealityStore,
+  row: EvidenceRow
+): Promise<string> {
+  if (row.r2_object_key) {
+    const object = await store.bucket.get(row.r2_object_key);
+    if (object) {
+      const text = (await object.text()).trim();
+      if (text) return text;
+    }
+  }
+  return (row.summary ?? "").trim();
 }
 
 export type IngestEvidenceResult =
@@ -123,7 +178,7 @@ export async function ingestFetchedEvidence(
   store.sql`
     INSERT INTO evidences (
       id, target_id, url, title, publisher, source_type, published_at,
-      observed_at, summary, content_hash, r2_object_key
+      observed_at, summary, content_hash, r2_object_key, compared_at
     ) VALUES (
       ${evidenceId},
       ${targetId},
@@ -135,7 +190,8 @@ export async function ingestFetchedEvidence(
       ${now},
       ${summary},
       ${contentHash},
-      ${objectKey}
+      ${objectKey},
+      ${null}
     )
   `;
 

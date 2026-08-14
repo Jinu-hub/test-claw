@@ -19,17 +19,21 @@ import {
   getTarget,
   isRealityInitialized,
   listTargets,
+  scanTarget,
   seedFixtureIfNeeded,
-  type RealityStore
+  type RealityStore,
+  type ScanTargetResult
 } from "./reality";
 import { collectServerTools, composeSystemPrompt } from "./tools";
 import {
   MAX_TOOL_STEPS,
   REALITY_INITIALIZED_TYPE,
+  REALITY_SCANNED_TYPE,
   SCHEDULED_TASK_TYPE
 } from "./tools/shared";
 
 export { InitializeRealityWorkflow } from "./workflows/initialize-reality";
+export { ScanTargetWorkflow } from "./workflows/scan-target";
 
 export class ChatAgent extends AIChatAgent<Env> {
   maxPersistedMessages = MAX_PERSISTED_MESSAGES;
@@ -106,29 +110,109 @@ export class ChatAgent extends AIChatAgent<Env> {
     return { workflowId, targetId, force };
   }
 
+  async prepareScanTarget(targetId: string) {
+    const store = this.getRealityStore();
+    const target = getTarget(store, targetId);
+    if (!target) {
+      throw new Error(`Target not found: ${targetId}`);
+    }
+
+    const pack = getSourcePack(target);
+    if (!pack) {
+      throw new Error(
+        `No canonical source pack for "${target.name}". Phase 6 currently supports Cloudflare Agents.`
+      );
+    }
+
+    const existing = await getCurrentContext(store, targetId);
+    if (!isRealityInitialized(existing)) {
+      throw new Error(
+        `Reality for "${target.name}" is not initialized. Run initializeReality first.`
+      );
+    }
+
+    return {
+      targetId: target.id,
+      name: target.name,
+      packId: pack.id
+    };
+  }
+
+  async runScanTarget(targetId: string): Promise<ScanTargetResult> {
+    const store = this.getRealityStore();
+    const target = getTarget(store, targetId);
+    if (!target) {
+      throw new Error(`Target not found: ${targetId}`);
+    }
+
+    return scanTarget({
+      store,
+      ai: this.env.AI,
+      target
+    });
+  }
+
+  async startScanTarget(targetId: string) {
+    await this.prepareScanTarget(targetId);
+    const workflowId = await this.runWorkflow("SCAN_TARGET_WORKFLOW", {
+      targetId
+    });
+    return { workflowId, targetId };
+  }
+
   async onWorkflowComplete(
     workflowName: string,
     _instanceId: string,
     result?: unknown
   ) {
-    if (workflowName !== "INITIALIZE_REALITY_WORKFLOW") return;
+    if (workflowName === "INITIALIZE_REALITY_WORKFLOW") {
+      const payload =
+        result && typeof result === "object"
+          ? (result as {
+              targetId?: string;
+              name?: string;
+              sectionKeys?: string[];
+              sourcesFetched?: number;
+            })
+          : {};
+
+      this.broadcast(
+        JSON.stringify({
+          type: REALITY_INITIALIZED_TYPE,
+          targetId: payload.targetId ?? "",
+          name: payload.name ?? "",
+          sectionKeys: payload.sectionKeys ?? [],
+          sourcesFetched: payload.sourcesFetched ?? 0,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (workflowName !== "SCAN_TARGET_WORKFLOW") return;
     const payload =
       result && typeof result === "object"
         ? (result as {
             targetId?: string;
             name?: string;
-            sectionKeys?: string[];
-            sourcesFetched?: number;
+            patchesCreated?: number;
+            patchedSectionKeys?: string[];
+            skipped?: number;
+            llmCalled?: boolean;
+            message?: string;
           })
         : {};
 
     this.broadcast(
       JSON.stringify({
-        type: REALITY_INITIALIZED_TYPE,
+        type: REALITY_SCANNED_TYPE,
         targetId: payload.targetId ?? "",
         name: payload.name ?? "",
-        sectionKeys: payload.sectionKeys ?? [],
-        sourcesFetched: payload.sourcesFetched ?? 0,
+        patchesCreated: payload.patchesCreated ?? 0,
+        patchedSectionKeys: payload.patchedSectionKeys ?? [],
+        skipped: payload.skipped ?? 0,
+        llmCalled: payload.llmCalled ?? false,
+        message: payload.message ?? "",
         timestamp: new Date().toISOString()
       })
     );

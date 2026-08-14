@@ -6,8 +6,10 @@ import {
   getCurrentContext,
   getCurrentContextMarkdown,
   getSourcePack,
+  injectSandboxSessionTestEvidence,
   isRealityInitialized,
   listEvidences,
+  listPatches,
   listTargets,
   parseRealityContext,
   removeTarget,
@@ -25,18 +27,23 @@ export type RealityToolHost = {
     targetId: string,
     force?: boolean
   ): Promise<{ workflowId: string; targetId: string; force: boolean }>;
+  startScanTarget(
+    targetId: string
+  ): Promise<{ workflowId: string; targetId: string }>;
 };
 
 const stringList = z.array(z.string().min(1)).optional();
 const requiredStringList = z.array(z.string().min(1)).min(1);
 
-export const realityPrompt = `Target management tools (Phase 5):
+export const realityPrompt = `Target management tools (Phase 6):
 - listTargets / addTarget / removeTarget
 - setWatchIntent / updateWatchIntent
 - getReality
 - initializeReality ← build initial Reality Context from canonical docs (Workflow)
-- getEvidence ← list stored evidence (URLs, hashes, summaries)
-- collectEvidence ← re-fetch canonical sources; identical content_hash is skipped
+- getEvidence / collectEvidence
+- scanTarget ← fetch, skip duplicate hashes, compare new evidence, patch changed sections (Workflow)
+- getPatches ← list stored patches (before / after / evidence)
+- injectTestEvidence ← Phase 6 verification helper (sandbox 10min → 30min)
 
 Mandatory tool use:
 - "추가해줘" → addTarget before confirming
@@ -44,15 +51,16 @@ Mandatory tool use:
 - "초기 Reality" / "baseline 만들어" → initializeReality
 - "근거" / "evidence" / "소스가 뭐야" / "왜 그렇게 알아" → getEvidence
 - "같은 문서 다시" / "evidence 수집" / "중복인지 봐" → collectEvidence
-- Never claim evidence exists unless getEvidence/collectEvidence/initializeReality returned it
+- "스캔" / "다시 봐" / "뭐가 달라졌" / "scan" → scanTarget
+- "패치" / "patch" / "변경 내역" → getPatches
+- "테스트 evidence" / "세션 시간 변경" / "10분" / "30분 넣어" → injectTestEvidence
+- Never claim a scan or patch succeeded unless the matching tool returned it
+- Patch 0 after scanning the same docs is success
 
-Evidence rules:
-- Evidence is why Reality was believed, stored separately from current.md
-- Duplicate content (same SHA-256) for a target is skipped, not stored twice
-- collectEvidence after initializeReality should mostly return skipped: duplicate_hash
-- Phase 5 still does NOT create patches or semantically compare
-
-initializeReality still supports Cloudflare Agents source pack only.`;
+Evidence / patch rules:
+- Duplicate content (same SHA-256) is skipped before LLM compare
+- Scans patch existing sections only; they never add section keys
+- injectTestEvidence is synthetic; say so when reporting it`;
 
 export function createRealityTools(agent: RealityToolHost) {
   return {
@@ -61,7 +69,9 @@ export function createRealityTools(agent: RealityToolHost) {
         "List watch targets currently stored in Agent SQLite. Use when the user asks what is being watched or what exists in storage.",
       inputSchema: z.object({}),
       execute: async () => {
-        const targets = listTargets(agent.getRealityStore()).map(summarizeTarget);
+        const targets = listTargets(agent.getRealityStore()).map(
+          summarizeTarget
+        );
         return targets.length > 0
           ? { targets }
           : { targets: [], message: "No targets stored yet." };
@@ -93,7 +103,10 @@ export function createRealityTools(agent: RealityToolHost) {
         "Remove a watch target by id or name. Deletes SQLite rows and the R2 current.md object.",
       inputSchema: z.object({
         targetId: z.string().optional().describe("Target id if known"),
-        name: z.string().optional().describe("Target display name if id unknown")
+        name: z
+          .string()
+          .optional()
+          .describe("Target display name if id unknown")
       }),
       execute: async (input) => removeTarget(agent.getRealityStore(), input)
     }),
@@ -128,7 +141,8 @@ export function createRealityTools(agent: RealityToolHost) {
         priority: stringList,
         mode: z.enum(["replace", "merge"]).optional()
       }),
-      execute: async (input) => updateWatchIntent(agent.getRealityStore(), input)
+      execute: async (input) =>
+        updateWatchIntent(agent.getRealityStore(), input)
     }),
 
     initializeReality: tool({
@@ -158,7 +172,7 @@ export function createRealityTools(agent: RealityToolHost) {
             targetId: resolved.target.id,
             name: resolved.target.name,
             message:
-              "No canonical source pack for this target yet. Phase 4 currently supports Cloudflare Agents only."
+              "No canonical source pack for this target yet. Phase 6 currently supports Cloudflare Agents only."
           };
         }
 
@@ -191,6 +205,89 @@ export function createRealityTools(agent: RealityToolHost) {
         } catch (error) {
           return {
             started: false as const,
+            targetId: resolved.target.id,
+            name: resolved.target.name,
+            message: error instanceof Error ? error.message : String(error)
+          };
+        }
+      }
+    }),
+
+    scanTarget: tool({
+      description:
+        "Start a background scan workflow: re-fetch canonical docs, skip identical hashes, semantically compare only new/uncompared evidence, and patch existing Reality sections if a meaningful change is found. Patch 0 is success. REQUIRED when the user asks to scan or what changed versus known reality.",
+      inputSchema: z.object({
+        targetId: z.string().optional(),
+        name: z.string().optional()
+      }),
+      execute: async ({ targetId, name }) => {
+        const store = agent.getRealityStore();
+        const resolved = resolveTargetOrSingle(store, { targetId, name });
+        if (!resolved.target) {
+          return { started: false as const, message: resolved.message };
+        }
+
+        const pack = getSourcePack(resolved.target);
+        if (!pack) {
+          return {
+            started: false as const,
+            targetId: resolved.target.id,
+            name: resolved.target.name,
+            message:
+              "No canonical source pack for this target yet. Phase 6 currently supports Cloudflare Agents only."
+          };
+        }
+
+        const existing = await getCurrentContext(store, resolved.target.id);
+        if (!isRealityInitialized(existing)) {
+          return {
+            started: false as const,
+            targetId: resolved.target.id,
+            name: resolved.target.name,
+            message:
+              "Reality is not initialized. Run initializeReality before scanning."
+          };
+        }
+
+        try {
+          const started = await agent.startScanTarget(resolved.target.id);
+          return {
+            started: true as const,
+            ...started,
+            name: resolved.target.name,
+            message:
+              "Scan workflow started. Ask getPatches after it finishes. Patch 0 means nothing meaningful changed."
+          };
+        } catch (error) {
+          return {
+            started: false as const,
+            targetId: resolved.target.id,
+            name: resolved.target.name,
+            message: error instanceof Error ? error.message : String(error)
+          };
+        }
+      }
+    }),
+
+    injectTestEvidence: tool({
+      description:
+        "Phase 6 verification helper. Seeds a sandbox baseline of 10-minute sessions if missing, then stores synthetic evidence that sessions now last 30 minutes. Does not scan. Follow with scanTarget.",
+      inputSchema: z.object({
+        targetId: z.string().optional(),
+        name: z.string().optional()
+      }),
+      execute: async ({ targetId, name }) => {
+        const store = agent.getRealityStore();
+        const resolved = resolveTargetOrSingle(store, { targetId, name });
+        if (!resolved.target) {
+          return { injected: false as const, message: resolved.message };
+        }
+
+        try {
+          return await injectSandboxSessionTestEvidence(store, resolved.target);
+        } catch (error) {
+          return {
+            injected: false as const,
             targetId: resolved.target.id,
             name: resolved.target.name,
             message: error instanceof Error ? error.message : String(error)
@@ -260,6 +357,35 @@ export function createRealityTools(agent: RealityToolHost) {
           message:
             evidences.length === 0
               ? "No evidence stored yet. Run initializeReality or collectEvidence first."
+              : undefined
+        };
+      }
+    }),
+
+    getPatches: tool({
+      description:
+        "List stored Reality patches for a target, including before/after values and linked evidence ids. REQUIRED when the user asks what changed. An empty list means no meaningful changes have been recorded.",
+      inputSchema: z.object({
+        targetId: z.string().optional(),
+        name: z.string().optional()
+      }),
+      execute: async ({ targetId, name }) => {
+        const store = agent.getRealityStore();
+        const resolved = resolveTargetOrSingle(store, { targetId, name });
+        if (!resolved.target) {
+          return { found: false as const, message: resolved.message };
+        }
+
+        const patches = listPatches(store, resolved.target.id);
+        return {
+          found: true as const,
+          targetId: resolved.target.id,
+          name: resolved.target.name,
+          count: patches.length,
+          patches,
+          message:
+            patches.length === 0
+              ? "No patches stored yet. Unchanged scans are success."
               : undefined
         };
       }

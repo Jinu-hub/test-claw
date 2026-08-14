@@ -6,6 +6,7 @@ interface __BaseEnv_Env {
 	AI: Ai;
 	ChatAgent: DurableObjectNamespace<import("./src/server").ChatAgent>;
 	INITIALIZE_REALITY_WORKFLOW: Workflow<Parameters<import("./src/server").InitializeRealityWorkflow['run']>[0]['payload']>;
+	SCAN_TARGET_WORKFLOW: Workflow<Parameters<import("./src/server").ScanTargetWorkflow['run']>[0]['payload']>;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {

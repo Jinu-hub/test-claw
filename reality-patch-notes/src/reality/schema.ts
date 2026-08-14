@@ -46,7 +46,8 @@ export function ensureRealitySchema(sql: SqlExecutor): void {
       observed_at TEXT NOT NULL,
       summary TEXT,
       content_hash TEXT,
-      r2_object_key TEXT
+      r2_object_key TEXT,
+      compared_at TEXT
     )
   `;
 
@@ -62,7 +63,26 @@ export function ensureRealitySchema(sql: SqlExecutor): void {
   `;
 
   sql`
+    CREATE TABLE IF NOT EXISTS patch_evidences (
+      patch_id TEXT NOT NULL,
+      evidence_id TEXT NOT NULL,
+      PRIMARY KEY (patch_id, evidence_id)
+    )
+  `;
+
+  sql`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_evidences_target_hash
     ON evidences(target_id, content_hash)
   `;
+
+  sql`
+    CREATE INDEX IF NOT EXISTS idx_patches_target_created
+    ON patches(target_id, created_at)
+  `;
+
+  const evidenceColumns = sql<{ name: string }>`PRAGMA table_info(evidences)`;
+  if (!evidenceColumns.some((column) => column.name === "compared_at")) {
+    sql`ALTER TABLE evidences ADD COLUMN compared_at TEXT`;
+    sql`UPDATE evidences SET compared_at = observed_at WHERE compared_at IS NULL`;
+  }
 }

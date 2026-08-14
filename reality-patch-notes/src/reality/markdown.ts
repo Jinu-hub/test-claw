@@ -132,3 +132,28 @@ export function parseRealityContext(
 export function currentContextObjectKey(targetId: string): string {
   return `targets/${targetId}/current.md`;
 }
+
+/** Replace one existing section body. Refuses unknown keys so scans cannot add sections. */
+export function replaceSectionBody(
+  context: RealityContext,
+  sectionKey: string,
+  body: string,
+  lastUpdated: string
+): RealityContext | null {
+  if (!context.sections.some((section) => section.key === sectionKey)) {
+    return null;
+  }
+
+  return {
+    ...context,
+    profile: {
+      ...context.profile,
+      lastUpdated
+    },
+    sections: context.sections.map((section) =>
+      section.key === sectionKey
+        ? { ...section, body: body.trim() }
+        : section
+    )
+  };
+}

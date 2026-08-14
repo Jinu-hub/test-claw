@@ -1,5 +1,6 @@
 export const SCHEDULED_TASK_TYPE = "scheduled-task";
 export const REALITY_INITIALIZED_TYPE = "reality-initialized";
+export const REALITY_SCANNED_TYPE = "reality-scanned";
 
 export const MAX_TOOL_STEPS = 20;
 export const CALCULATE_APPROVAL_THRESHOLD = 1000;
@@ -16,6 +17,18 @@ export type RealityInitializedEvent = {
   name: string;
   sectionKeys: string[];
   sourcesFetched: number;
+  timestamp: string;
+};
+
+export type RealityScannedEvent = {
+  type: typeof REALITY_SCANNED_TYPE;
+  targetId: string;
+  name: string;
+  patchesCreated: number;
+  patchedSectionKeys: string[];
+  skipped: number;
+  llmCalled: boolean;
+  message: string;
   timestamp: string;
 };
 
@@ -72,6 +85,50 @@ export function parseRealityInitializedEvent(
       "sourcesFetched" in data && typeof data.sourcesFetched === "number"
         ? data.sourcesFetched
         : 0,
+    timestamp:
+      "timestamp" in data && typeof data.timestamp === "string"
+        ? data.timestamp
+        : new Date().toISOString()
+  };
+}
+
+export function parseRealityScannedEvent(
+  data: unknown
+): RealityScannedEvent | null {
+  if (
+    typeof data !== "object" ||
+    data === null ||
+    !("type" in data) ||
+    data.type !== REALITY_SCANNED_TYPE
+  ) {
+    return null;
+  }
+
+  return {
+    type: REALITY_SCANNED_TYPE,
+    targetId:
+      "targetId" in data && typeof data.targetId === "string"
+        ? data.targetId
+        : "",
+    name: "name" in data && typeof data.name === "string" ? data.name : "",
+    patchesCreated:
+      "patchesCreated" in data && typeof data.patchesCreated === "number"
+        ? data.patchesCreated
+        : 0,
+    patchedSectionKeys:
+      "patchedSectionKeys" in data && Array.isArray(data.patchedSectionKeys)
+        ? data.patchedSectionKeys.filter(
+            (item): item is string => typeof item === "string"
+          )
+        : [],
+    skipped:
+      "skipped" in data && typeof data.skipped === "number" ? data.skipped : 0,
+    llmCalled:
+      "llmCalled" in data && typeof data.llmCalled === "boolean"
+        ? data.llmCalled
+        : false,
+    message:
+      "message" in data && typeof data.message === "string" ? data.message : "",
     timestamp:
       "timestamp" in data && typeof data.timestamp === "string"
         ? data.timestamp

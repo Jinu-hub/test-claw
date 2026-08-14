@@ -32,6 +32,7 @@ import { featureFlags, getExamplePrompts } from "./feature-flags";
 import { handleClientToolCall } from "./tools/client";
 import {
   parseRealityInitializedEvent,
+  parseRealityScannedEvent,
   parseScheduledTaskEvent
 } from "./tools/shared";
 import { McpPanel, useMcpState } from "./components/McpPanel";
@@ -88,6 +89,21 @@ function Chat() {
             toasts.add({
               title: "Reality initialized",
               description: `${initialized.name || initialized.targetId} · ${initialized.sectionKeys.length} sections`,
+              timeout: 0
+            });
+          }
+          const scanned = parseRealityScannedEvent(data);
+          if (scanned) {
+            const sectionNote =
+              scanned.patchedSectionKeys.length > 0
+                ? ` · ${scanned.patchedSectionKeys.join(", ")}`
+                : "";
+            toasts.add({
+              title:
+                scanned.patchesCreated === 0
+                  ? "Scan complete · 0 patches"
+                  : `Scan complete · ${scanned.patchesCreated} patch${scanned.patchesCreated === 1 ? "" : "es"}`,
+              description: `${scanned.name || scanned.targetId}${sectionNote}`,
               timeout: 0
             });
           }
@@ -176,7 +192,7 @@ function Chat() {
             </h1>
             <Badge variant="secondary">
               <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
-              Phase 5
+              Phase 6
             </Badge>
           </div>
           <div className="flex items-center gap-3">
@@ -228,8 +244,9 @@ function Chat() {
                 <div className="flex flex-col items-center gap-4">
                   <div className="max-w-md text-center">
                     <Text variant="secondary">
-                      Reality remembers sources as Evidence. Ask for URLs, or
-                      re-collect canonical docs — identical hashes are skipped.
+                      Reality remembers current facts and reports only
+                      meaningful changes. Re-scan the same docs for 0 patches,
+                      or inject a test change to see a patch.
                     </Text>
                   </div>
                   {examplePrompts.length > 0 ? (

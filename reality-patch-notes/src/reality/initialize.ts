@@ -3,7 +3,10 @@ import { generateText } from "ai";
 import type { FetchedSource } from "./fetch";
 import { fetchSourceText } from "./fetch";
 import { getSourcePack, type SectionBlueprint } from "./sources";
-import { persistFetchedEvidence } from "./evidence";
+import {
+  markUncomparedEvidenceCompared,
+  persistFetchedEvidence
+} from "./evidence";
 import {
   getCurrentContext,
   parseWatchIntent,
@@ -182,6 +185,7 @@ export async function buildInitialRealityContext(input: {
     input.target.id,
     fetched
   );
+  markUncomparedEvidenceCompared(input.store, input.target.id, now);
 
   const objectKey = await putCurrentContext(input.store, context);
   upsertTarget(input.store, {

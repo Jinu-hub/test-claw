@@ -300,6 +300,10 @@ export async function removeTarget(
   const target = resolved.target;
 
   await deleteEvidenceObjects(store, target.id);
+  store.sql`
+    DELETE FROM patch_evidences
+    WHERE patch_id IN (SELECT id FROM patches WHERE target_id = ${target.id})
+  `;
   store.sql`DELETE FROM patches WHERE target_id = ${target.id}`;
   store.sql`DELETE FROM evidences WHERE target_id = ${target.id}`;
   store.sql`DELETE FROM scan_runs WHERE target_id = ${target.id}`;

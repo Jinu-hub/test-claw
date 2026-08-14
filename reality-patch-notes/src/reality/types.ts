@@ -64,7 +64,10 @@ export type EvidenceRow = {
   summary: string | null;
   content_hash: string | null;
   r2_object_key: string | null;
+  compared_at: string | null;
 };
+
+export type PatchType = "ADDED" | "CHANGED" | "REMOVED" | "DEPRECATED";
 
 export type ScanRunRow = {
   id: string;
