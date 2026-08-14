@@ -165,7 +165,7 @@ function Chat() {
             </h1>
             <Badge variant="secondary">
               <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
-              Phase 1
+              Phase 2
             </Badge>
           </div>
           <div className="flex items-center gap-3">
@@ -217,9 +217,9 @@ function Chat() {
                 <div className="flex flex-col items-center gap-4">
                   <div className="max-w-md text-center">
                     <Text variant="secondary">
-                      Not a daily news recap. This agent will remember a topic
-                      and report only meaningful changes. Target tracking is not
-                      implemented yet.
+                      Memory storage is ready. A fixture Cloudflare Agents
+                      target is seeded in SQLite + R2. Ask what is stored or
+                      read its Reality Context. Creating targets comes next.
                     </Text>
                   </div>
                   {examplePrompts.length > 0 ? (

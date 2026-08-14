@@ -10,6 +10,13 @@ import {
 import { MAX_PERSISTED_MESSAGES } from "./constants";
 import { featureFlags } from "./feature-flags";
 import { configureMcpOAuth } from "./features/mcp";
+import {
+  ensureRealitySchema,
+  getCurrentContextMarkdown,
+  listTargets,
+  seedFixtureIfNeeded,
+  type RealityStore
+} from "./reality";
 import { collectServerTools, composeSystemPrompt } from "./tools";
 import { MAX_TOOL_STEPS, SCHEDULED_TASK_TYPE } from "./tools/shared";
 
@@ -20,10 +27,38 @@ export class ChatAgent extends AIChatAgent<Env> {
   // processing a message, so MCP tools aren't intermittently missing.
   waitForMcpConnections = featureFlags.mcp;
 
-  onStart() {
+  async onStart() {
     if (featureFlags.mcp) {
       configureMcpOAuth(this);
     }
+
+    ensureRealitySchema(this.sql.bind(this));
+    await seedFixtureIfNeeded(this.sql.bind(this), this.env.REALITY_BUCKET);
+  }
+
+  getRealityStore(): RealityStore {
+    return {
+      sql: this.sql.bind(this),
+      bucket: this.env.REALITY_BUCKET
+    };
+  }
+
+  @callable()
+  async listStoredTargets() {
+    return listTargets(this.getRealityStore());
+  }
+
+  @callable()
+  async getStoredContext(targetId = "target_cf_agents") {
+    const markdown = await getCurrentContextMarkdown(
+      this.getRealityStore(),
+      targetId
+    );
+    return {
+      targetId,
+      found: Boolean(markdown),
+      markdown
+    };
   }
 
   @callable()

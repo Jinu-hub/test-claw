@@ -19,9 +19,9 @@ export const featureFlags = {
 export type FeatureId = keyof typeof featureFlags;
 
 const REALITY_EXAMPLE_PROMPTS = [
-  "이 서비스가 뭐야?",
-  "Cloudflare Agents를 추가해줘.",
-  "오늘 뭐 바뀐 거 있어?"
+  "지금 저장된 Target이 뭐야?",
+  "Cloudflare Agents Reality Context 보여줘.",
+  "Sandbox 섹션이 뭐라고 되어 있어?"
 ];
 
 const examplePromptsByFeature: Record<FeatureId, string[]> = {
