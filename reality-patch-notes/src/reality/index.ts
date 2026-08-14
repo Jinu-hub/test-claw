@@ -3,12 +3,25 @@ export {
   FIXTURE_TARGET_ID,
   seedFixtureIfNeeded
 } from "./fixture";
+export { fetchSourceText, htmlToText, type FetchedSource } from "./fetch";
+export {
+  buildInitialRealityContext,
+  isRealityInitialized,
+  type InitializeRealityResult
+} from "./initialize";
 export {
   currentContextObjectKey,
   parseRealityContext,
   serializeRealityContext
 } from "./markdown";
 export { ensureRealitySchema, type SqlExecutor } from "./schema";
+export {
+  getSourcePack,
+  listSupportedSourcePackIds,
+  type SectionBlueprint,
+  type SourcePack,
+  type SourceRef
+} from "./sources";
 export {
   getCurrentContext,
   getCurrentContextMarkdown,

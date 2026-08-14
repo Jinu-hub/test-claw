@@ -30,7 +30,10 @@ import {
 } from "@phosphor-icons/react";
 import { featureFlags, getExamplePrompts } from "./feature-flags";
 import { handleClientToolCall } from "./tools/client";
-import { parseScheduledTaskEvent } from "./tools/shared";
+import {
+  parseRealityInitializedEvent,
+  parseScheduledTaskEvent
+} from "./tools/shared";
 import { McpPanel, useMcpState } from "./components/McpPanel";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { ToolPartView } from "./components/ToolPartView";
@@ -77,6 +80,14 @@ function Chat() {
             toasts.add({
               title: "Scheduled task completed",
               description: scheduled.description,
+              timeout: 0
+            });
+          }
+          const initialized = parseRealityInitializedEvent(data);
+          if (initialized) {
+            toasts.add({
+              title: "Reality initialized",
+              description: `${initialized.name || initialized.targetId} · ${initialized.sectionKeys.length} sections`,
               timeout: 0
             });
           }
@@ -165,7 +176,7 @@ function Chat() {
             </h1>
             <Badge variant="secondary">
               <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
-              Phase 3
+              Phase 4
             </Badge>
           </div>
           <div className="flex items-center gap-3">
@@ -217,9 +228,9 @@ function Chat() {
                 <div className="flex flex-col items-center gap-4">
                   <div className="max-w-md text-center">
                     <Text variant="secondary">
-                      Chat can add, remove, and tune watch targets. New targets
-                      get an uninitialized Reality template — research comes in
-                      the next phase.
+                      Chat can manage targets and initialize Reality for
+                      Cloudflare Agents from canonical docs. Scanning for
+                      patches comes later.
                     </Text>
                   </div>
                   {examplePrompts.length > 0 ? (
@@ -443,7 +454,7 @@ function Chat() {
               placeholder={
                 featureFlags.images && attachments.length > 0
                   ? "Add a message or send images..."
-                  : "Add a target, change watch intent, or ask what is stored..."
+                  : "Initialize Reality, ask about a section, or manage targets..."
               }
               disabled={!connected || isStreaming}
               rows={1}

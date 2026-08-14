@@ -11,14 +11,25 @@ import { MAX_PERSISTED_MESSAGES } from "./constants";
 import { featureFlags } from "./feature-flags";
 import { configureMcpOAuth } from "./features/mcp";
 import {
+  buildInitialRealityContext,
   ensureRealitySchema,
+  getCurrentContext,
   getCurrentContextMarkdown,
+  getSourcePack,
+  getTarget,
+  isRealityInitialized,
   listTargets,
   seedFixtureIfNeeded,
   type RealityStore
 } from "./reality";
 import { collectServerTools, composeSystemPrompt } from "./tools";
-import { MAX_TOOL_STEPS, SCHEDULED_TASK_TYPE } from "./tools/shared";
+import {
+  MAX_TOOL_STEPS,
+  REALITY_INITIALIZED_TYPE,
+  SCHEDULED_TASK_TYPE
+} from "./tools/shared";
+
+export { InitializeRealityWorkflow } from "./workflows/initialize-reality";
 
 export class ChatAgent extends AIChatAgent<Env> {
   maxPersistedMessages = MAX_PERSISTED_MESSAGES;
@@ -41,6 +52,86 @@ export class ChatAgent extends AIChatAgent<Env> {
       sql: this.sql.bind(this),
       bucket: this.env.REALITY_BUCKET
     };
+  }
+
+  async prepareInitializeReality(targetId: string, force = false) {
+    const store = this.getRealityStore();
+    const target = getTarget(store, targetId);
+    if (!target) {
+      throw new Error(`Target not found: ${targetId}`);
+    }
+
+    const pack = getSourcePack(target);
+    if (!pack) {
+      throw new Error(
+        `No canonical source pack for "${target.name}". Phase 4 currently supports Cloudflare Agents.`
+      );
+    }
+
+    const existing = await getCurrentContext(store, targetId);
+    if (!force && isRealityInitialized(existing)) {
+      throw new Error(
+        `Reality for "${target.name}" is already initialized. Pass force=true to rebuild from sources.`
+      );
+    }
+
+    return {
+      targetId: target.id,
+      name: target.name,
+      packId: pack.id,
+      sourceCount: pack.sources.length
+    };
+  }
+
+  async runInitializeReality(targetId: string) {
+    const store = this.getRealityStore();
+    const target = getTarget(store, targetId);
+    if (!target) {
+      throw new Error(`Target not found: ${targetId}`);
+    }
+
+    return buildInitialRealityContext({
+      store,
+      ai: this.env.AI,
+      target
+    });
+  }
+
+  async startInitializeReality(targetId: string, force = false) {
+    await this.prepareInitializeReality(targetId, force);
+    const workflowId = await this.runWorkflow("INITIALIZE_REALITY_WORKFLOW", {
+      targetId,
+      force
+    });
+    return { workflowId, targetId, force };
+  }
+
+  async onWorkflowComplete(
+    workflowName: string,
+    _instanceId: string,
+    result?: unknown
+  ) {
+    if (workflowName !== "INITIALIZE_REALITY_WORKFLOW") return;
+    const payload =
+      result && typeof result === "object"
+        ? (result as {
+            targetId?: string;
+            name?: string;
+            sectionKeys?: string[];
+            sourcesFetched?: number;
+          })
+        : {};
+
+    this.broadcast(
+      JSON.stringify({
+        type: REALITY_INITIALIZED_TYPE,
+        targetId: payload.targetId ?? "",
+        name: payload.name ?? "",
+        sectionKeys: payload.sectionKeys ?? [],
+        sourcesFetched: payload.sourcesFetched ?? 0,
+        timestamp: new Date().toISOString()
+      })
+    );
   }
 
   @callable()
@@ -94,13 +185,7 @@ export class ChatAgent extends AIChatAgent<Env> {
   }
 
   async executeTask(description: string, _task: Schedule<string>) {
-    // Do the actual work here (send email, call API, etc.)
     console.log(`Executing scheduled task: ${description}`);
-
-    // Notify connected clients via a broadcast event.
-    // We use broadcast() instead of saveMessages() to avoid injecting
-    // into chat history — that would cause the AI to see the notification
-    // as new context and potentially loop.
     this.broadcast(
       JSON.stringify({
         type: SCHEDULED_TASK_TYPE,

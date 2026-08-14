@@ -20,6 +20,13 @@
 			"bucket_name": "reality-patch-notes"
 		}
 	],
+	"workflows": [
+		{
+			"name": "initialize-reality-workflow",
+			"binding": "INITIALIZE_REALITY_WORKFLOW",
+			"class_name": "InitializeRealityWorkflow"
+		}
+	],
 	"assets": {
 		"directory": "./public",
 		"not_found_handling": "single-page-application",

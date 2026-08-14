@@ -19,8 +19,8 @@ export const featureFlags = {
 export type FeatureId = keyof typeof featureFlags;
 
 const REALITY_EXAMPLE_PROMPTS = [
-  "Bitcoin도 추가해줘.",
-  "가격 변화는 관심 없고 ETF, 규제만 봐줘.",
+  "Cloudflare Agents 초기 Reality 만들어줘.",
+  "Sandbox가 지금 어떤 상태야?",
   "지금 저장된 Target이 뭐야?"
 ];
 

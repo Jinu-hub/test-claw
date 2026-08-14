@@ -1,0 +1,89 @@
+import {
+  AgentWorkflow,
+  type AgentWorkflowEvent,
+  type AgentWorkflowStep
+} from "agents/workflows";
+import type { ChatAgent } from "../server";
+
+export type InitializeRealityParams = {
+  targetId: string;
+  force?: boolean;
+};
+
+type PrepareResult = {
+  targetId: string;
+  name: string;
+  packId: string;
+  sourceCount: number;
+};
+
+type BuildResult = {
+  targetId: string;
+  name: string;
+  objectKey: string;
+  sectionKeys: string[];
+  sourcesFetched: number;
+  sourcesFailed: number;
+  sourceUrls: string[];
+};
+
+export class InitializeRealityWorkflow extends AgentWorkflow<
+  ChatAgent,
+  InitializeRealityParams
+> {
+  async run(
+    event: AgentWorkflowEvent<InitializeRealityParams>,
+    step: AgentWorkflowStep
+  ) {
+    const { targetId, force = false } = event.payload;
+
+    await this.reportProgress({
+      step: "start",
+      status: "running",
+      percent: 0.05,
+      targetId
+    });
+
+    const prepared = await step.do("prepare", async (): Promise<PrepareResult> => {
+      const value = await this.agent.prepareInitializeReality(targetId, force);
+      return {
+        targetId: String(value.targetId),
+        name: String(value.name),
+        packId: String(value.packId),
+        sourceCount: Number(value.sourceCount)
+      };
+    });
+
+    await this.reportProgress({
+      step: "prepared",
+      status: "running",
+      percent: 0.2,
+      targetId,
+      packId: prepared.packId
+    });
+
+    const result = await step.do("build-and-save", async (): Promise<BuildResult> => {
+      const value = await this.agent.runInitializeReality(targetId);
+      return {
+        targetId: String(value.targetId),
+        name: String(value.name),
+        objectKey: String(value.objectKey),
+        sectionKeys: [...value.sectionKeys].map(String),
+        sourcesFetched: Number(value.sourcesFetched),
+        sourcesFailed: Number(value.sourcesFailed),
+        sourceUrls: [...value.sourceUrls].map(String)
+      };
+    });
+
+    await this.reportProgress({
+      step: "complete",
+      status: "complete",
+      percent: 1,
+      targetId,
+      sectionKeys: result.sectionKeys
+    });
+
+    await step.reportComplete(result);
+    return result;
+  }
+}

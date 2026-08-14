@@ -2,8 +2,12 @@ import { tool } from "ai";
 import { z } from "zod";
 import {
   addTarget,
+  getCurrentContext,
   getCurrentContextMarkdown,
+  getSourcePack,
+  isRealityInitialized,
   listTargets,
+  parseRealityContext,
   removeTarget,
   resolveTargetOrSingle,
   setWatchIntent,
@@ -14,39 +18,37 @@ import {
 
 export type RealityToolHost = {
   getRealityStore(): RealityStore;
+  startInitializeReality(
+    targetId: string,
+    force?: boolean
+  ): Promise<{ workflowId: string; targetId: string; force: boolean }>;
 };
 
 const stringList = z.array(z.string().min(1)).optional();
 const requiredStringList = z.array(z.string().min(1)).min(1);
 
-export const realityPrompt = `Target management tools (Phase 3):
-- listTargets
-- addTarget
-- removeTarget
-- setWatchIntent  ← preferred for redefining what to watch
-- updateWatchIntent ← only for partial add/merge tweaks
+export const realityPrompt = `Target management tools (Phase 4):
+- listTargets / addTarget / removeTarget
+- setWatchIntent / updateWatchIntent
 - getReality
+- initializeReality ← build initial Reality Context from canonical docs (Workflow)
 
 Mandatory tool use:
-- "추가해줘" / add / watch → addTarget before confirming
-- "관심 없고" / "만 봐줘" / "만 추적" → setWatchIntent before confirming
-- small additive tweaks like "ETF도 추가해줘" → updateWatchIntent with mode "merge"
-- "제거해줘" / remove → removeTarget before confirming
-- Never claim intent changed unless setWatchIntent or updateWatchIntent returned updated: true
-- After success, quote ONLY the returned focus / ignore / priority arrays
+- "추가해줘" → addTarget before confirming
+- "관심 없고" / "만 봐줘" → setWatchIntent before confirming
+- "초기 Reality" / "baseline 만들어" / "리서치해서 Context 채워" / after adding Cloudflare Agents → initializeReality
+- Never claim Reality was initialized unless initializeReality returned started: true
+- initializeReality starts a background workflow; tell the user it is running and they can ask getReality shortly
 
-setWatchIntent mapping examples:
-- User: "가격 변화는 관심 없고 ETF, 규제만 봐줘."
-  → setWatchIntent({ name: "Bitcoin", focus: ["ETF", "regulation"], ignore: ["price"] })
-- User: "Sandbox와 Browser만 중요해."
-  → setWatchIntent({ name: "Cloudflare Agents", focus: ["Sandbox", "Browser"], ignore: [] })
-- Do NOT call updateWatchIntent with only priority for these utterances
-- Do NOT leave old focus items when the user says "만 봐줘"
+initializeReality rules:
+- Phase 4 currently supports Cloudflare Agents source pack only
+- Fixture/target_cf_agents may already have seeded content; use force=true to rebuild from live docs
+- Bitcoin and other targets without a source pack should get a clear unsupported message from the tool
+- Do not invent section content while waiting for the workflow
 
 Other rules:
-- Newly added targets are NOT researched yet
 - Prefer resolving by name; call listTargets when ambiguous
-- Still unavailable: research, scan, patches, evidence collection`;
+- Still unavailable: scanning for changes, patches, evidence linking`;
 
 export function createRealityTools(agent: RealityToolHost) {
   return {
@@ -64,7 +66,7 @@ export function createRealityTools(agent: RealityToolHost) {
 
     addTarget: tool({
       description:
-        "Register a new watch target. Creates a SQLite row and an uninitialized Reality Context template in R2. Does not research or initialize baseline content. REQUIRED before telling the user a target was added.",
+        "Register a new watch target. Creates a SQLite row and an uninitialized Reality Context template in R2. Does not research. For Cloudflare Agents, follow with initializeReality.",
       inputSchema: z.object({
         name: z.string().min(1).describe("Display name of the target to watch"),
         description: z
@@ -84,7 +86,7 @@ export function createRealityTools(agent: RealityToolHost) {
 
     removeTarget: tool({
       description:
-        "Remove a watch target by id or name. Deletes SQLite rows and the R2 current.md object. REQUIRED before telling the user a target was removed. If name/id omitted and exactly one target exists, that target is used.",
+        "Remove a watch target by id or name. Deletes SQLite rows and the R2 current.md object.",
       inputSchema: z.object({
         targetId: z.string().optional().describe("Target id if known"),
         name: z.string().optional().describe("Target display name if id unknown")
@@ -94,21 +96,16 @@ export function createRealityTools(agent: RealityToolHost) {
 
     setWatchIntent: tool({
       description:
-        "Replace the full watch intent. REQUIRED for utterances like '가격은 관심 없고 ETF, 규제만 봐줘' or 'Sandbox만 봐줘'. Always pass the complete focus list and ignore list. Old focus items are discarded. Do not claim success without this tool.",
+        "Replace the full watch intent. REQUIRED for utterances like '가격은 관심 없고 ETF, 규제만 봐줘'.",
       inputSchema: z.object({
         targetId: z.string().optional(),
-        name: z
-          .string()
-          .optional()
-          .describe("Target name from conversation when known"),
+        name: z.string().optional(),
         focus: requiredStringList.describe(
           "Exact topics to watch after this update"
         ),
         ignore: z
           .array(z.string().min(1))
-          .describe(
-            "Topics to ignore. Use [] if none. For '가격은 관심 없고', include price."
-          ),
+          .describe("Topics to ignore. Use [] if none."),
         priority: stringList.describe(
           "Optional priority subset. Defaults to focus when omitted."
         )
@@ -118,35 +115,92 @@ export function createRealityTools(agent: RealityToolHost) {
 
     updateWatchIntent: tool({
       description:
-        "Partial watch-intent tweak. Prefer setWatchIntent when the user redefines what to watch. Use this mainly with mode=merge to append items (e.g. 'ETF도 추가해줘'). Ignore terms are removed from focus/priority automatically.",
+        "Partial watch-intent tweak. Prefer setWatchIntent when redefining what to watch. Use mode=merge to append items.",
       inputSchema: z.object({
         targetId: z.string().optional(),
-        name: z
-          .string()
-          .optional()
-          .describe("Target name from conversation when known"),
-        focus: stringList.describe("Focus topics to set or merge"),
-        ignore: stringList.describe("Ignore topics to set or merge"),
-        priority: stringList.describe("Priority topics to set or merge"),
-        mode: z
-          .enum(["replace", "merge"])
-          .optional()
-          .describe(
-            "replace (default): overwrite provided fields. merge: append to existing lists."
-          )
+        name: z.string().optional(),
+        focus: stringList,
+        ignore: stringList,
+        priority: stringList,
+        mode: z.enum(["replace", "merge"]).optional()
       }),
       execute: async (input) => updateWatchIntent(agent.getRealityStore(), input)
     }),
 
+    initializeReality: tool({
+      description:
+        "Start a background workflow that fetches canonical docs and writes the initial Reality Context to R2. REQUIRED before claiming baseline research completed. Currently supports Cloudflare Agents. Use force=true to rebuild an already initialized target.",
+      inputSchema: z.object({
+        targetId: z.string().optional(),
+        name: z.string().optional(),
+        force: z
+          .boolean()
+          .optional()
+          .describe(
+            "Rebuild even if Reality already looks initialized. Use true for the seeded Cloudflare Agents fixture."
+          )
+      }),
+      execute: async ({ targetId, name, force }) => {
+        const store = agent.getRealityStore();
+        const resolved = resolveTargetOrSingle(store, { targetId, name });
+        if (!resolved.target) {
+          return { started: false as const, message: resolved.message };
+        }
+
+        const pack = getSourcePack(resolved.target);
+        if (!pack) {
+          return {
+            started: false as const,
+            targetId: resolved.target.id,
+            name: resolved.target.name,
+            message:
+              "No canonical source pack for this target yet. Phase 4 currently supports Cloudflare Agents only."
+          };
+        }
+
+        const existing = await getCurrentContext(store, resolved.target.id);
+        const already = isRealityInitialized(existing);
+        if (already && !force) {
+          return {
+            started: false as const,
+            targetId: resolved.target.id,
+            name: resolved.target.name,
+            alreadyInitialized: true,
+            message:
+              "Reality already looks initialized. Re-run with force=true to rebuild from live docs."
+          };
+        }
+
+        try {
+          const started = await agent.startInitializeReality(
+            resolved.target.id,
+            Boolean(force)
+          );
+          return {
+            started: true as const,
+            ...started,
+            name: resolved.target.name,
+            packId: pack.id,
+            message:
+              "Initialize Reality workflow started. Ask getReality after it finishes."
+          };
+        } catch (error) {
+          return {
+            started: false as const,
+            targetId: resolved.target.id,
+            name: resolved.target.name,
+            message: error instanceof Error ? error.message : String(error)
+          };
+        }
+      }
+    }),
+
     getReality: tool({
       description:
-        "Read the current Reality Context markdown for a target from R2. Use when the user asks what is currently known about a target, or to verify intent after an update.",
+        "Read the current Reality Context markdown for a target from R2.",
       inputSchema: z.object({
-        targetId: z
-          .string()
-          .optional()
-          .describe("Target id such as target_cf_agents"),
-        name: z.string().optional().describe("Target display name")
+        targetId: z.string().optional(),
+        name: z.string().optional()
       }),
       execute: async ({ targetId, name }) => {
         const store = agent.getRealityStore();
@@ -173,6 +227,9 @@ export function createRealityTools(agent: RealityToolHost) {
           targetId: target.id,
           name: target.name,
           found: true,
+          initialized: isRealityInitialized(
+            parseRealityContext(markdown, target.id)
+          ),
           objectKey: `targets/${target.id}/current.md`,
           markdown
         };
