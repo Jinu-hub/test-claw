@@ -26,14 +26,18 @@ import {
   BugIcon,
   PaperclipIcon,
   ImageIcon,
-  XIcon
+  XIcon,
+  CircleNotchIcon
 } from "@phosphor-icons/react";
 import { featureFlags, getExamplePrompts } from "./feature-flags";
 import { handleClientToolCall } from "./tools/client";
 import {
   parseRealityInitializedEvent,
   parseRealityScannedEvent,
-  parseScheduledTaskEvent
+  parseScheduledTaskEvent,
+  parseWorkflowProgressEvent,
+  workflowKindLabel,
+  workflowStepLabel
 } from "./tools/shared";
 import { McpPanel, useMcpState } from "./components/McpPanel";
 import { ThemeToggle } from "./components/ThemeToggle";
@@ -42,10 +46,21 @@ import { fileToDataUri, useAttachments } from "./hooks/useAttachments";
 
 const examplePrompts = getExamplePrompts();
 
+type BackgroundJob = {
+  key: string;
+  workflowName: string;
+  instanceId: string;
+  label: string;
+  stepLabel: string;
+  detail: string;
+  percent: number;
+};
+
 function Chat() {
   const [connected, setConnected] = useState(false);
   const [input, setInput] = useState("");
   const [showDebug, setShowDebug] = useState(false);
+  const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -62,6 +77,12 @@ function Chat() {
     handleDrop,
     handlePaste
   } = useAttachments();
+
+  const clearJobsForWorkflow = useCallback((workflowName: string) => {
+    setBackgroundJobs((jobs) =>
+      jobs.filter((job) => job.workflowName !== workflowName)
+    );
+  }, []);
 
   const agent = useAgent<ChatAgent>({
     agent: "ChatAgent",
@@ -84,8 +105,51 @@ function Chat() {
               timeout: 0
             });
           }
+          const progress = parseWorkflowProgressEvent(data);
+          if (progress) {
+            const key =
+              progress.instanceId ||
+              `${progress.workflowName}:${progress.progress.targetId ?? "job"}`;
+            const percent = Math.max(
+              0,
+              Math.min(1, progress.progress.percent ?? 0)
+            );
+            const kind = workflowKindLabel(progress.workflowName);
+            const name =
+              progress.progress.name || progress.progress.targetId || "target";
+            const detail =
+              progress.progress.message ||
+              `${workflowStepLabel(progress.progress.step)} · ${name}`;
+
+            if (
+              progress.progress.status === "complete" ||
+              progress.progress.step === "complete"
+            ) {
+              setBackgroundJobs((jobs) =>
+                jobs.filter((job) => job.key !== key)
+              );
+            } else {
+              setBackgroundJobs((jobs) => {
+                const next: BackgroundJob = {
+                  key,
+                  workflowName: progress.workflowName,
+                  instanceId: progress.instanceId,
+                  label: kind,
+                  stepLabel: workflowStepLabel(progress.progress.step),
+                  detail,
+                  percent
+                };
+                const index = jobs.findIndex((job) => job.key === key);
+                if (index < 0) return [...jobs, next];
+                const copy = [...jobs];
+                copy[index] = next;
+                return copy;
+              });
+            }
+          }
           const initialized = parseRealityInitializedEvent(data);
           if (initialized) {
+            clearJobsForWorkflow("INITIALIZE_REALITY_WORKFLOW");
             toasts.add({
               title: "Reality initialized",
               description: `${initialized.name || initialized.targetId} · ${initialized.sectionKeys.length} sections`,
@@ -94,6 +158,7 @@ function Chat() {
           }
           const scanned = parseRealityScannedEvent(data);
           if (scanned) {
+            clearJobsForWorkflow("SCAN_TARGET_WORKFLOW");
             const sectionNote =
               scanned.patchedSectionKeys.length > 0
                 ? ` · patched ${scanned.patchedSectionKeys.join(", ")}`
@@ -123,7 +188,7 @@ function Chat() {
           // Not JSON or not our event
         }
       },
-      [toasts]
+      [toasts, clearJobsForWorkflow]
     )
   });
 
@@ -245,6 +310,48 @@ function Chat() {
           </div>
         </div>
       </header>
+
+      {backgroundJobs.length > 0 && (
+        <div className="px-5 py-2 bg-kumo-base border-b border-kumo-line">
+          <div className="max-w-3xl mx-auto space-y-2">
+            {backgroundJobs.map((job) => (
+              <div
+                key={job.key}
+                className="rounded-lg border border-kumo-line bg-kumo-control/40 px-3 py-2"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <CircleNotchIcon
+                      size={14}
+                      className="animate-spin text-kumo-brand shrink-0"
+                    />
+                    <div className="truncate">
+                      <Text size="xs">
+                        <span className="font-medium">{job.label}</span>
+                        <span className="text-kumo-subtle">
+                          {" "}
+                          · {job.detail}
+                        </span>
+                      </Text>
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    <Text size="xs" variant="secondary">
+                      {Math.round(job.percent * 100)}%
+                    </Text>
+                  </div>
+                </div>
+                <div className="mt-2 h-1 rounded-full bg-kumo-line overflow-hidden">
+                  <div
+                    className="h-full bg-kumo-brand transition-[width] duration-300 ease-out"
+                    style={{ width: `${Math.max(4, job.percent * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-5 py-6 space-y-5">

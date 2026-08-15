@@ -30,7 +30,8 @@ import {
   MAX_TOOL_STEPS,
   REALITY_INITIALIZED_TYPE,
   REALITY_SCANNED_TYPE,
-  SCHEDULED_TASK_TYPE
+  SCHEDULED_TASK_TYPE,
+  WORKFLOW_PROGRESS_TYPE
 } from "./tools/shared";
 
 export { InitializeRealityWorkflow } from "./workflows/initialize-reality";
@@ -108,6 +109,21 @@ export class ChatAgent extends AIChatAgent<Env> {
       targetId,
       force
     });
+    this.broadcast(
+      JSON.stringify({
+        type: WORKFLOW_PROGRESS_TYPE,
+        workflowName: "INITIALIZE_REALITY_WORKFLOW",
+        instanceId: workflowId,
+        progress: {
+          step: "queued",
+          status: "running",
+          percent: 0.02,
+          targetId,
+          message: "Initialize Reality queued…"
+        },
+        timestamp: new Date().toISOString()
+      })
+    );
     return { workflowId, targetId, force };
   }
 
@@ -158,7 +174,38 @@ export class ChatAgent extends AIChatAgent<Env> {
     const workflowId = await this.runWorkflow("SCAN_TARGET_WORKFLOW", {
       targetId
     });
+    this.broadcast(
+      JSON.stringify({
+        type: WORKFLOW_PROGRESS_TYPE,
+        workflowName: "SCAN_TARGET_WORKFLOW",
+        instanceId: workflowId,
+        progress: {
+          step: "queued",
+          status: "running",
+          percent: 0.02,
+          targetId,
+          message: "Scan queued…"
+        },
+        timestamp: new Date().toISOString()
+      })
+    );
     return { workflowId, targetId };
+  }
+
+  async onWorkflowProgress(
+    workflowName: string,
+    instanceId: string,
+    progress: unknown
+  ) {
+    this.broadcast(
+      JSON.stringify({
+        type: WORKFLOW_PROGRESS_TYPE,
+        workflowName,
+        instanceId,
+        progress: progress ?? {},
+        timestamp: new Date().toISOString()
+      })
+    );
   }
 
   async onWorkflowComplete(

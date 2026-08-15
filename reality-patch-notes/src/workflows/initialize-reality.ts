@@ -43,48 +43,62 @@ export class InitializeRealityWorkflow extends AgentWorkflow<
       step: "start",
       status: "running",
       percent: 0.05,
-      targetId
+      targetId,
+      message: "Starting initialize…"
     });
 
-    const prepared = await step.do("prepare", async (): Promise<PrepareResult> => {
-      const value = await this.agent.prepareInitializeReality(targetId, force);
-      return {
-        targetId: String(value.targetId),
-        name: String(value.name),
-        packId: String(value.packId),
-        sourceCount: Number(value.sourceCount)
-      };
-    });
+    const prepared = await step.do(
+      "prepare",
+      async (): Promise<PrepareResult> => {
+        const value = await this.agent.prepareInitializeReality(
+          targetId,
+          force
+        );
+        return {
+          targetId: String(value.targetId),
+          name: String(value.name),
+          packId: String(value.packId),
+          sourceCount: Number(value.sourceCount)
+        };
+      }
+    );
 
     await this.reportProgress({
       step: "prepared",
       status: "running",
       percent: 0.2,
       targetId,
-      packId: prepared.packId
+      name: prepared.name,
+      packId: prepared.packId,
+      message: `Building Reality from ${prepared.sourceCount} sources…`
     });
 
-    const result = await step.do("build-and-save", async (): Promise<BuildResult> => {
-      const value = await this.agent.runInitializeReality(targetId);
-      return {
-        targetId: String(value.targetId),
-        name: String(value.name),
-        objectKey: String(value.objectKey),
-        sectionKeys: [...value.sectionKeys].map(String),
-        sourcesFetched: Number(value.sourcesFetched),
-        sourcesFailed: Number(value.sourcesFailed),
-        sourceUrls: [...value.sourceUrls].map(String),
-        evidenceStored: Number(value.evidenceStored),
-        evidenceSkipped: Number(value.evidenceSkipped)
-      };
-    });
+    const result = await step.do(
+      "build-and-save",
+      async (): Promise<BuildResult> => {
+        const value = await this.agent.runInitializeReality(targetId);
+        return {
+          targetId: String(value.targetId),
+          name: String(value.name),
+          objectKey: String(value.objectKey),
+          sectionKeys: [...value.sectionKeys].map(String),
+          sourcesFetched: Number(value.sourcesFetched),
+          sourcesFailed: Number(value.sourcesFailed),
+          sourceUrls: [...value.sourceUrls].map(String),
+          evidenceStored: Number(value.evidenceStored),
+          evidenceSkipped: Number(value.evidenceSkipped)
+        };
+      }
+    );
 
     await this.reportProgress({
       step: "complete",
       status: "complete",
       percent: 1,
       targetId,
-      sectionKeys: result.sectionKeys
+      name: result.name,
+      sectionKeys: result.sectionKeys,
+      message: "Initialize finishing…"
     });
 
     await step.reportComplete(result);

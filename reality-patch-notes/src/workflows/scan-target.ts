@@ -46,7 +46,8 @@ export class ScanTargetWorkflow extends AgentWorkflow<
       step: "start",
       status: "running",
       percent: 0.05,
-      targetId
+      targetId,
+      message: "Starting scan…"
     });
 
     const prepared = await step.do(
@@ -65,7 +66,8 @@ export class ScanTargetWorkflow extends AgentWorkflow<
       status: "running",
       percent: 0.2,
       targetId,
-      name: prepared.name
+      name: prepared.name,
+      message: `Fetching and comparing sources for ${prepared.name}…`
     });
 
     const result = await step.do(
@@ -97,8 +99,10 @@ export class ScanTargetWorkflow extends AgentWorkflow<
       status: "complete",
       percent: 1,
       targetId,
+      name: result.name,
       patchesCreated: result.patchesCreated,
-      proposalsCreated: result.proposalsCreated
+      proposalsCreated: result.proposalsCreated,
+      message: "Scan finishing…"
     });
 
     await step.reportComplete(result);
