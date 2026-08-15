@@ -6,7 +6,10 @@ function renderBulletList(items: string[]): string {
 }
 
 function extractListAfterHeading(section: string, heading: string): string[] {
-  const pattern = new RegExp(`${heading}:\\s*\\n([\\s\\S]*?)(?=\\n[A-Z][\\w ]*:|$)`, "i");
+  const pattern = new RegExp(
+    `${heading}:\\s*\\n([\\s\\S]*?)(?=\\n[A-Z][\\w ]*:|$)`,
+    "i"
+  );
   const match = section.match(pattern);
   if (!match) return [];
   return match[1]
@@ -75,17 +78,13 @@ export function parseRealityContext(
   const name = nameMatch?.[1]?.trim() ?? targetId;
 
   const profileBlock =
-    markdown.match(
-      /## Target Profile[\s\S]*?(?=## Watch Intent|$)/
-    )?.[0] ?? "";
+    markdown.match(/## Target Profile[\s\S]*?(?=## Watch Intent|$)/)?.[0] ?? "";
   const intentBlock =
-    markdown.match(
-      /## Watch Intent[\s\S]*?(?=## Current Reality|$)/
-    )?.[0] ?? "";
+    markdown.match(/## Watch Intent[\s\S]*?(?=## Current Reality|$)/)?.[0] ??
+    "";
   const realityBlock =
-    markdown.match(
-      /## Current Reality[\s\S]*?(?=## Open Questions|$)/
-    )?.[0] ?? "";
+    markdown.match(/## Current Reality[\s\S]*?(?=## Open Questions|$)/)?.[0] ??
+    "";
   const openQuestionsBlock =
     markdown.match(/## Open Questions[\s\S]*$/)?.[0] ?? "";
 
@@ -151,9 +150,36 @@ export function replaceSectionBody(
       lastUpdated
     },
     sections: context.sections.map((section) =>
-      section.key === sectionKey
-        ? { ...section, body: body.trim() }
-        : section
+      section.key === sectionKey ? { ...section, body: body.trim() } : section
     )
+  };
+}
+
+/** Append a new section. Refuses if the key already exists. */
+export function addSection(
+  context: RealityContext,
+  section: { key: string; title: string; body: string },
+  lastUpdated: string
+): RealityContext | null {
+  const key = section.key.trim().toLowerCase();
+  if (!key || !/^[a-z0-9-]+$/.test(key)) return null;
+  if (context.sections.some((existing) => existing.key === key)) {
+    return null;
+  }
+
+  return {
+    ...context,
+    profile: {
+      ...context.profile,
+      lastUpdated
+    },
+    sections: [
+      ...context.sections,
+      {
+        key,
+        title: section.title.trim() || key,
+        body: section.body.trim()
+      }
+    ]
   };
 }

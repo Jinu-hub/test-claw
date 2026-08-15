@@ -57,7 +57,9 @@ export async function fetchSourceText(
     const contentType = response.headers.get("content-type") ?? "";
     const raw = await response.text();
     const text = (
-      contentType.includes("html") ? htmlToText(raw) : raw.replace(/\s+/g, " ").trim()
+      contentType.includes("html")
+        ? htmlToText(raw)
+        : raw.replace(/\s+/g, " ").trim()
     ).slice(0, maxChars);
 
     return {

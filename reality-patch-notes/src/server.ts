@@ -198,6 +198,8 @@ export class ChatAgent extends AIChatAgent<Env> {
             name?: string;
             patchesCreated?: number;
             patchedSectionKeys?: string[];
+            proposalsCreated?: number;
+            proposedSectionKeys?: string[];
             skipped?: number;
             llmCalled?: boolean;
             message?: string;
@@ -211,6 +213,8 @@ export class ChatAgent extends AIChatAgent<Env> {
         name: payload.name ?? "",
         patchesCreated: payload.patchesCreated ?? 0,
         patchedSectionKeys: payload.patchedSectionKeys ?? [],
+        proposalsCreated: payload.proposalsCreated ?? 0,
+        proposedSectionKeys: payload.proposedSectionKeys ?? [],
         skipped: payload.skipped ?? 0,
         llmCalled: payload.llmCalled ?? false,
         message: payload.message ?? "",

@@ -27,6 +27,8 @@ type ScanResult = {
   llmCalled: boolean;
   patchesCreated: number;
   patchedSectionKeys: string[];
+  proposalsCreated: number;
+  proposedSectionKeys: string[];
   message: string;
 };
 
@@ -83,6 +85,8 @@ export class ScanTargetWorkflow extends AgentWorkflow<
           llmCalled: Boolean(value.llmCalled),
           patchesCreated: Number(value.patchesCreated),
           patchedSectionKeys: [...value.patchedSectionKeys].map(String),
+          proposalsCreated: Number(value.proposalsCreated),
+          proposedSectionKeys: [...value.proposedSectionKeys].map(String),
           message: String(value.message)
         };
       }
@@ -93,7 +97,8 @@ export class ScanTargetWorkflow extends AgentWorkflow<
       status: "complete",
       percent: 1,
       targetId,
-      patchesCreated: result.patchesCreated
+      patchesCreated: result.patchesCreated,
+      proposalsCreated: result.proposalsCreated
     });
 
     await step.reportComplete(result);

@@ -304,6 +304,7 @@ export async function removeTarget(
     DELETE FROM patch_evidences
     WHERE patch_id IN (SELECT id FROM patches WHERE target_id = ${target.id})
   `;
+  store.sql`DELETE FROM section_proposals WHERE target_id = ${target.id}`;
   store.sql`DELETE FROM patches WHERE target_id = ${target.id}`;
   store.sql`DELETE FROM evidences WHERE target_id = ${target.id}`;
   store.sql`DELETE FROM scan_runs WHERE target_id = ${target.id}`;

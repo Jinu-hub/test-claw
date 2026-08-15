@@ -12,6 +12,10 @@ import { fetchSourceText } from "./fetch";
 import { isRealityInitialized } from "./initialize";
 import { replaceSectionBody } from "./markdown";
 import { insertPatch, insertScanRun, type PatchSummary } from "./patches";
+import {
+  upsertPendingProposal,
+  type SectionProposalSummary
+} from "./section-proposals";
 import { getSourcePack } from "./sources";
 import {
   getCurrentContext,
@@ -47,6 +51,16 @@ const compareSchema = z.object({
         updatedSectionBody: z.string()
       })
     )
+    .default([]),
+  proposedSections: z
+    .array(
+      z.object({
+        sectionKey: z.string(),
+        title: z.string(),
+        body: z.string(),
+        summary: z.string()
+      })
+    )
     .default([])
 });
 
@@ -66,6 +80,9 @@ export type ScanTargetResult = {
   patchesCreated: number;
   patchedSectionKeys: string[];
   patches: PatchSummary[];
+  proposalsCreated: number;
+  proposedSectionKeys: string[];
+  proposals: SectionProposalSummary[];
   message: string;
 };
 
@@ -111,6 +128,15 @@ function extractJsonObject(text: string): unknown {
   return JSON.parse(raw.slice(start, end + 1)) as unknown;
 }
 
+function normalizeSectionKey(key: string): string {
+  return key
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
 async function runSemanticCompare(input: {
   ai: Ai;
   targetName: string;
@@ -126,16 +152,19 @@ changed: false is the CORRECT and usual success when evidence restates, paraphra
 
 Watch focus: ${input.intent.focus.join(", ") || "(none)"}
 Watch ignore: ${input.intent.ignore.join(", ") || "(none)"}
-Allowed section keys (existing only): ${allowedKeys.join(", ")}
+Allowed section keys (existing Reality only): ${allowedKeys.join(", ")}
 
-Create a patch ONLY when evidence shows:
-- a concrete fact that contradicts current reality, or
-- a new user-relevant capability, limit, or API now known, or
-- removal/deprecation of something previously believed
+For facts that belong to an EXISTING section key:
+- Put them in patches (type CHANGED/ADDED/REMOVED/DEPRECATED)
+- updatedSectionBody must edit ONLY that existing section. No markdown headings.
 
-Do NOT patch for wording, marketing, ignored topics, or facts already in the section.
-Never invent a new section_key. Prefer exactly one patch when only one area changed.
-If changed, updatedSectionBody must be the existing section with ONLY the changed fact edited. Keep other sentences. No markdown headings.
+For a NEW capability that does NOT fit any existing section:
+- Do NOT invent a patch against an existing key
+- Put it in proposedSections with a new kebab-case sectionKey, title, body (2-4 short paragraphs), and summary
+- Prefer at most one proposed section unless evidence clearly introduces multiple distinct areas
+
+Do NOT patch or propose for wording, marketing, ignored topics, or facts already known.
+Prefer patches over proposals when the fact fits an existing section.
 
 CURRENT REALITY:
 ${formatSections(input.sections)}
@@ -162,8 +191,9 @@ ${input.evidenceBlock}`;
     prompt: `${prompt}
 
 Respond with JSON only:
-{"changed":false,"reason":"...","patches":[]}
-or patches with type, sectionKey, title, summary, before, after, impact, updatedSectionBody.`
+{"changed":false,"reason":"...","patches":[],"proposedSections":[]}
+patches items need type, sectionKey, title, summary, before, after, impact, updatedSectionBody.
+proposedSections items need sectionKey, title, body, summary.`
   });
 
   return compareSchema.parse(extractJsonObject(fallback.text));
@@ -178,7 +208,7 @@ export async function scanTarget(input: {
   const pack = getSourcePack(target);
   if (!pack) {
     throw new Error(
-      `No canonical source pack for "${target.name}". Phase 6 currently supports Cloudflare Agents.`
+      `No canonical source pack for "${target.name}". Phase 8 currently supports Cloudflare Agents.`
     );
   }
 
@@ -230,6 +260,7 @@ export async function scanTarget(input: {
 
   let llmCalled = false;
   const patches: PatchSummary[] = [];
+  const proposals: SectionProposalSummary[] = [];
   let nextContext = context;
 
   if (comparable.length > 0) {
@@ -258,43 +289,67 @@ ${text}`
     const evidenceIds = comparable.map((row) => row.id);
     const allowed = new Set(nextContext.sections.map((section) => section.key));
 
-    if (comparison.changed) {
-      for (const candidate of comparison.patches) {
-        if (!allowed.has(candidate.sectionKey)) continue;
-        const existing = nextContext.sections.find(
-          (section) => section.key === candidate.sectionKey
-        );
-        if (!existing) continue;
+    for (const candidate of comparison.patches) {
+      if (!allowed.has(candidate.sectionKey)) continue;
+      const existing = nextContext.sections.find(
+        (section) => section.key === candidate.sectionKey
+      );
+      if (!existing) continue;
 
-        const updatedBody =
-          candidate.updatedSectionBody.trim().length > 20
-            ? candidate.updatedSectionBody.trim()
-            : existing.body;
-        if (updatedBody === existing.body.trim()) continue;
-        const patched = replaceSectionBody(
-          nextContext,
-          candidate.sectionKey,
-          updatedBody,
-          comparedAt
-        );
-        if (!patched) continue;
-        if (patched.sections.length !== nextContext.sections.length) continue;
+      const updatedBody =
+        candidate.updatedSectionBody.trim().length > 20
+          ? candidate.updatedSectionBody.trim()
+          : existing.body;
+      if (updatedBody === existing.body.trim()) continue;
+      const patched = replaceSectionBody(
+        nextContext,
+        candidate.sectionKey,
+        updatedBody,
+        comparedAt
+      );
+      if (!patched) continue;
+      if (patched.sections.length !== nextContext.sections.length) continue;
 
-        nextContext = patched;
-        patches.push(
-          insertPatch(store, {
-            targetId: target.id,
-            sectionKey: candidate.sectionKey,
-            type: candidate.type as PatchType,
-            title: candidate.title,
-            summary: candidate.summary,
-            before: candidate.before || existing.body.slice(0, 400),
-            after: candidate.after || updatedBody.slice(0, 400),
-            impact: candidate.impact,
-            evidenceIds
-          })
-        );
+      nextContext = patched;
+      patches.push(
+        insertPatch(store, {
+          targetId: target.id,
+          sectionKey: candidate.sectionKey,
+          type: candidate.type as PatchType,
+          title: candidate.title,
+          summary: candidate.summary,
+          before: candidate.before || existing.body.slice(0, 400),
+          after: candidate.after || updatedBody.slice(0, 400),
+          impact: candidate.impact,
+          evidenceIds
+        })
+      );
+    }
+
+    for (const proposal of comparison.proposedSections) {
+      const sectionKey = normalizeSectionKey(proposal.sectionKey);
+      if (!sectionKey) continue;
+      if (allowed.has(sectionKey)) continue;
+      if (
+        isIgnoredByWatchIntent(
+          `${proposal.title}\n${proposal.body}\n${proposal.summary}`,
+          intent
+        )
+      ) {
+        continue;
       }
+      if (proposal.body.trim().length < 20) continue;
+
+      proposals.push(
+        upsertPendingProposal(store, {
+          targetId: target.id,
+          sectionKey,
+          title: proposal.title || sectionKey,
+          body: proposal.body.trim(),
+          summary: proposal.summary.trim() || proposal.title,
+          evidenceIds
+        })
+      );
     }
 
     markEvidenceCompared(store, evidenceIds, comparedAt);
@@ -317,6 +372,9 @@ ${text}`
   const patchedSectionKeys = [
     ...new Set(patches.map((patch) => patch.sectionKey))
   ];
+  const proposedSectionKeys = [
+    ...new Set(proposals.map((proposal) => proposal.sectionKey))
+  ];
   const notes = JSON.stringify({
     fetched,
     stored,
@@ -326,7 +384,9 @@ ${text}`
     ignored: ignoredRows.length,
     llmCalled,
     patchesCreated: patches.length,
-    patchedSectionKeys
+    patchedSectionKeys,
+    proposalsCreated: proposals.length,
+    proposedSectionKeys
   });
   const scanRunId = insertScanRun(store, {
     targetId: target.id,
@@ -337,12 +397,31 @@ ${text}`
   });
 
   const unchanged =
-    patches.length === 0 && stored === 0 && comparable.length === 0;
-  const message = unchanged
-    ? "No new evidence to compare. Identical hashes were skipped. Patch 0 is success."
-    : patches.length === 0
-      ? `Compared ${comparable.length} evidence item(s); no meaningful change. Patch 0 is success.`
-      : `Created ${patches.length} patch(es) for ${patchedSectionKeys.join(", ")}.`;
+    patches.length === 0 &&
+    proposals.length === 0 &&
+    stored === 0 &&
+    comparable.length === 0;
+
+  let message: string;
+  if (unchanged) {
+    message =
+      "No new evidence to compare. Identical hashes were skipped. Patch 0 is success.";
+  } else if (patches.length === 0 && proposals.length === 0) {
+    message = `Compared ${comparable.length} evidence item(s); no meaningful change. Patch 0 is success.`;
+  } else {
+    const parts: string[] = [];
+    if (patches.length > 0) {
+      parts.push(
+        `Created ${patches.length} patch(es) for ${patchedSectionKeys.join(", ")}`
+      );
+    }
+    if (proposals.length > 0) {
+      parts.push(
+        `Proposed ${proposals.length} new section(s): ${proposedSectionKeys.join(", ")}. Accept or reject via chat tools.`
+      );
+    }
+    message = parts.join(" ");
+  }
 
   return {
     targetId: target.id,
@@ -358,6 +437,9 @@ ${text}`
     patchesCreated: patches.length,
     patchedSectionKeys,
     patches,
+    proposalsCreated: proposals.length,
+    proposedSectionKeys,
+    proposals,
     message
   };
 }
@@ -389,7 +471,7 @@ export async function injectSandboxSessionTestEvidence(
       baselineSeeded: false,
       evidence: null,
       message:
-        "No sandbox section exists. Phase 6 will not auto-create sections."
+        "No sandbox section exists. Use injectNewSectionTestEvidence to test section proposals."
     };
   }
 
@@ -458,5 +540,75 @@ After 30 minutes the isolated execution environment is recycled.`
     message: baselineSeeded
       ? "Seeded sandbox baseline (10 minutes) and stored synthetic evidence (30 minutes). Run scanTarget next."
       : "Stored synthetic evidence that sandbox sessions last 30 minutes. Run scanTarget next."
+  };
+}
+
+/** Phase 8 verification: evidence for a capability that should become a section proposal. */
+export async function injectNewSectionTestEvidence(
+  store: RealityStore,
+  target: TargetRow
+): Promise<{
+  injected: boolean;
+  evidence: ReturnType<typeof summarizeEvidence> | null;
+  message: string;
+}> {
+  const context = await getCurrentContext(store, target.id);
+  if (!isRealityInitialized(context) || !context) {
+    return {
+      injected: false,
+      evidence: null,
+      message:
+        "Reality is not initialized. Run initializeReality before injecting a test change."
+    };
+  }
+
+  if (context.sections.some((section) => section.key === "voice")) {
+    return {
+      injected: false,
+      evidence: null,
+      message:
+        "Reality already has a voice section. Reject/remove it or use a fresh target to test proposals."
+    };
+  }
+
+  const nonce = crypto.randomUUID();
+  const result = await ingestFetchedEvidence(store, target.id, {
+    url: `https://developers.cloudflare.com/agents/api-reference/voice/?synthetic=new-section&nonce=${nonce}`,
+    title: "Agents Voice capability (synthetic test)",
+    publisher: "Reality Patch Notes Test",
+    sourceType: "synthetic_test",
+    ok: true,
+    text: `SYNTHETIC TEST EVIDENCE (not a live Cloudflare document).
+Nonce: ${nonce}
+
+Cloudflare Agents now documents an experimental Voice capability.
+Agents can use speech-to-text (STT) and text-to-speech (TTS) via @cloudflare/voice.
+This is a distinct product area from Browser automation and Sandbox execution.
+Voice sessions are experimental and require explicit enablement in the agent configuration.
+There is no existing Reality section that covers Voice; treat this as a new capability area.`
+  });
+
+  if ("error" in result) {
+    return {
+      injected: false,
+      evidence: null,
+      message: result.error
+    };
+  }
+
+  if (result.skipped) {
+    return {
+      injected: false,
+      evidence: result.evidence,
+      message:
+        "Synthetic evidence matched an existing hash and was skipped. Scan will not see a new proposal."
+    };
+  }
+
+  return {
+    injected: true,
+    evidence: result.evidence,
+    message:
+      "Stored synthetic Voice capability evidence. Run scanTarget next; expect a pending section proposal, not an automatic section."
   };
 }

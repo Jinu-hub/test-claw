@@ -62,6 +62,24 @@ const CLOUDFLARE_AGENTS_PACK: SourcePack = {
       title: "Browse the web",
       publisher: "Cloudflare",
       sourceType: "official_docs"
+    },
+    {
+      url: "https://developers.cloudflare.com/agents/api-reference/schedule-tasks/",
+      title: "Schedule tasks",
+      publisher: "Cloudflare",
+      sourceType: "official_docs"
+    },
+    {
+      url: "https://developers.cloudflare.com/agents/api-reference/voice/",
+      title: "Voice",
+      publisher: "Cloudflare",
+      sourceType: "official_docs"
+    },
+    {
+      url: "https://developers.cloudflare.com/sandbox/",
+      title: "Sandbox docs",
+      publisher: "Cloudflare",
+      sourceType: "official_docs"
     }
   ],
   sections: [
@@ -99,6 +117,16 @@ const CLOUDFLARE_AGENTS_PACK: SourcePack = {
       key: "workflows",
       title: "Workflows",
       purpose: "Durable multi-step workflows and when to use them"
+    },
+    {
+      key: "scheduling",
+      title: "Scheduling",
+      purpose: "schedule, scheduleEvery, cron, and delayed agent tasks"
+    },
+    {
+      key: "voice",
+      title: "Voice",
+      purpose: "Experimental STT/TTS voice capabilities for agents"
     }
   ]
 };

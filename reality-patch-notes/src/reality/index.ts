@@ -22,6 +22,7 @@ export {
 export {
   currentContextObjectKey,
   parseRealityContext,
+  addSection,
   replaceSectionBody,
   serializeRealityContext
 } from "./markdown";
@@ -42,11 +43,24 @@ export {
   type ScheduledScanPayload
 } from "./schedule-payload";
 export {
+  injectNewSectionTestEvidence,
   injectSandboxSessionTestEvidence,
   isIgnoredByWatchIntent,
   scanTarget,
   type ScanTargetResult
 } from "./scan";
+export {
+  acceptSectionProposal,
+  findPendingProposal,
+  getSectionProposal,
+  listPendingProposals,
+  listSectionProposals,
+  rejectSectionProposal,
+  summarizeSectionProposal,
+  upsertPendingProposal,
+  type SectionProposalStatus,
+  type SectionProposalSummary
+} from "./section-proposals";
 export { ensureRealitySchema, type SqlExecutor } from "./schema";
 export {
   getSourcePack,

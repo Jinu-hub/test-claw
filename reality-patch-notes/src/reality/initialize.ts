@@ -160,7 +160,9 @@ export async function buildInitialRealityContext(input: {
     "Are Browser capabilities experimental-only or generally available for Agents?",
     ...fetched
       .filter((source) => !source.ok)
-      .map((source) => `Re-fetch failed source: ${source.url} (${source.error})`)
+      .map(
+        (source) => `Re-fetch failed source: ${source.url} (${source.error})`
+      )
   ];
 
   const context: RealityContext = {
@@ -171,7 +173,8 @@ export async function buildInitialRealityContext(input: {
         existing?.profile.description ||
         input.target.description ||
         `${input.target.name} tracked from official documentation.`,
-      category: existing?.profile.category || input.target.category || "technology",
+      category:
+        existing?.profile.category || input.target.category || "technology",
       created,
       lastUpdated: now
     },

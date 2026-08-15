@@ -4,7 +4,10 @@ import { getSourcePack } from "./sources";
 import type { RealityStore } from "./store";
 import type { EvidenceRow, TargetRow } from "./types";
 
-export function evidenceObjectKey(targetId: string, evidenceId: string): string {
+export function evidenceObjectKey(
+  targetId: string,
+  evidenceId: string
+): string {
   return `targets/${targetId}/evidence/${evidenceId}.txt`;
 }
 
@@ -142,7 +145,9 @@ export async function ingestFetchedEvidence(
   targetId: string,
   source: FetchedSource,
   options?: { storeRaw?: boolean }
-): Promise<IngestEvidenceResult | { stored: false; skipped: false; error: string }> {
+): Promise<
+  IngestEvidenceResult | { stored: false; skipped: false; error: string }
+> {
   if (!source.ok || !source.text.trim()) {
     return {
       stored: false,

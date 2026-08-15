@@ -1,17 +1,21 @@
 import { tool } from "ai";
 import { z } from "zod";
 import {
+  acceptSectionProposal,
   addTarget,
   collectCanonicalEvidence,
   getCurrentContext,
   getCurrentContextMarkdown,
   getSourcePack,
+  injectNewSectionTestEvidence,
   injectSandboxSessionTestEvidence,
   isRealityInitialized,
   listEvidences,
+  listSectionProposals,
   listTargets,
   parseRealityContext,
   queryPatches,
+  rejectSectionProposal,
   removeTarget,
   resolveTargetOrSingle,
   setWatchIntent,
@@ -35,35 +39,38 @@ export type RealityToolHost = {
 const stringList = z.array(z.string().min(1)).optional();
 const requiredStringList = z.array(z.string().min(1)).min(1);
 
-export const realityPrompt = `Target management tools (Phase 7):
+export const realityPrompt = `Target management tools (Phase 8):
 - listTargets / addTarget / removeTarget
 - setWatchIntent / updateWatchIntent
 - getReality
 - initializeReality ← build initial Reality Context from canonical docs (Workflow)
 - getEvidence / collectEvidence
-- scanTarget ← fetch, skip duplicate hashes, compare new evidence, patch changed sections (Workflow)
-- getPatches ← list/filter patches (before / after / evidence URLs)
+- scanTarget ← fetch, skip duplicates, patch existing sections, propose NEW sections (Workflow)
+- getPatches ← list/filter patches
+- listSectionProposals / acceptSectionProposal / rejectSectionProposal
 - scheduleScan / listScheduledScans / cancelScheduledScan
-- injectTestEvidence ← verification helper (sandbox 10min → 30min)
+- injectTestEvidence ← verification (sandbox change OR new-section Voice proposal)
 
 Mandatory tool use:
 - "추가해줘" → addTarget before confirming
 - "관심 없고" / "만 봐줘" → setWatchIntent before confirming
 - "초기 Reality" / "baseline 만들어" → initializeReality
-- "근거" / "evidence" / "소스가 뭐야" / "왜 그렇게 알아" → getEvidence
-- "같은 문서 다시" / "evidence 수집" / "중복인지 봐" → collectEvidence
-- "스캔" / "다시 봐" / "scan" → scanTarget
-- "오늘 뭐 바뀐" / "최근 변화" / "지난달 Sandbox" / "패치" / "변경 내역" → getPatches (use since/until/sectionKey filters)
-- "매일 스캔" / "정기적으로 봐" / "N분마다 스캔" → scheduleScan
-- "예약된 스캔" → listScheduledScans
-- "테스트 evidence" / "세션 시간 변경" → injectTestEvidence
-- Never claim a scan, schedule, or patch unless the matching tool returned it
+- "근거" / "evidence" → getEvidence
+- "스캔" / "scan" → scanTarget
+- "오늘 뭐 바뀐" / "패치" → getPatches
+- "새 기능 제안" / "섹션 제안" / "제안 목록" → listSectionProposals
+- "제안 반영" / "섹션 추가해줘" / "accept" → acceptSectionProposal
+- "제안 거절" / "reject" → rejectSectionProposal
+- "매일 스캔" → scheduleScan
+- "테스트 evidence" / "세션 시간" → injectTestEvidence kind=sandbox
+- "새 섹션 테스트" / "Voice 테스트 evidence" → injectTestEvidence kind=new-section
+- Never claim a scan, proposal, or patch unless the matching tool returned it
+- Scans do NOT auto-add sections; proposals need acceptSectionProposal
 - Patch 0 after scanning the same docs is success
 
 Query rules:
 - Answer change questions from patch history, not from memory
-- Quote evidence URLs only from tool results
-- Empty patch list means no meaningful changes were recorded`;
+- Quote evidence URLs only from tool results`;
 
 export function createRealityTools(agent: RealityToolHost) {
   return {
@@ -259,7 +266,7 @@ export function createRealityTools(agent: RealityToolHost) {
             ...started,
             name: resolved.target.name,
             message:
-              "Scan workflow started. Ask getPatches after it finishes. Patch 0 means nothing meaningful changed."
+              "Scan workflow started. Ask getPatches or listSectionProposals after it finishes. Patch 0 means nothing meaningful changed; new capabilities appear as proposals until accepted."
           };
         } catch (error) {
           return {
@@ -274,12 +281,18 @@ export function createRealityTools(agent: RealityToolHost) {
 
     injectTestEvidence: tool({
       description:
-        "Phase 6 verification helper. Seeds a sandbox baseline of 10-minute sessions if missing, then stores synthetic evidence that sessions now last 30 minutes. Does not scan. Follow with scanTarget.",
+        "Verification helper. kind=sandbox seeds 10→30 minute session change. kind=new-section stores synthetic Voice capability evidence that should become a pending section proposal after scan. Does not scan.",
       inputSchema: z.object({
         targetId: z.string().optional(),
-        name: z.string().optional()
+        name: z.string().optional(),
+        kind: z
+          .enum(["sandbox", "new-section"])
+          .optional()
+          .describe(
+            "sandbox (default) or new-section for Phase 8 proposal test"
+          )
       }),
-      execute: async ({ targetId, name }) => {
+      execute: async ({ targetId, name, kind }) => {
         const store = agent.getRealityStore();
         const resolved = resolveTargetOrSingle(store, { targetId, name });
         if (!resolved.target) {
@@ -287,6 +300,9 @@ export function createRealityTools(agent: RealityToolHost) {
         }
 
         try {
+          if (kind === "new-section") {
+            return await injectNewSectionTestEvidence(store, resolved.target);
+          }
           return await injectSandboxSessionTestEvidence(store, resolved.target);
         } catch (error) {
           return {
@@ -296,6 +312,90 @@ export function createRealityTools(agent: RealityToolHost) {
             message: error instanceof Error ? error.message : String(error)
           };
         }
+      }
+    }),
+
+    listSectionProposals: tool({
+      description:
+        "List section proposals from scans (pending/accepted/rejected). REQUIRED when the user asks about new capability proposals. Scans do not auto-add sections.",
+      inputSchema: z.object({
+        targetId: z.string().optional(),
+        name: z.string().optional(),
+        status: z.enum(["pending", "accepted", "rejected"]).optional()
+      }),
+      execute: async ({ targetId, name, status }) => {
+        const store = agent.getRealityStore();
+        const resolved = resolveTargetOrSingle(store, { targetId, name });
+        if (!resolved.target) {
+          return { found: false as const, message: resolved.message };
+        }
+
+        const proposals = listSectionProposals(
+          store,
+          resolved.target.id,
+          status
+        );
+        return {
+          found: true as const,
+          targetId: resolved.target.id,
+          name: resolved.target.name,
+          count: proposals.length,
+          status: status ?? "all",
+          proposals,
+          message:
+            proposals.length === 0
+              ? "No section proposals. New capabilities appear here after a scan finds them."
+              : undefined
+        };
+      }
+    }),
+
+    acceptSectionProposal: tool({
+      description:
+        "Accept a pending section proposal: add the section to Reality current.md and create an ADDED patch. REQUIRED before claiming a new section was added.",
+      inputSchema: z.object({
+        proposalId: z.string().min(1),
+        targetId: z.string().optional(),
+        name: z.string().optional()
+      }),
+      execute: async ({ proposalId, targetId, name }) => {
+        const store = agent.getRealityStore();
+        const resolved = resolveTargetOrSingle(store, { targetId, name });
+        if (!resolved.target) {
+          return { accepted: false as const, message: resolved.message };
+        }
+
+        try {
+          return await acceptSectionProposal(
+            store,
+            resolved.target,
+            proposalId
+          );
+        } catch (error) {
+          return {
+            accepted: false as const,
+            message: error instanceof Error ? error.message : String(error)
+          };
+        }
+      }
+    }),
+
+    rejectSectionProposal: tool({
+      description:
+        "Reject a pending section proposal without changing Reality.",
+      inputSchema: z.object({
+        proposalId: z.string().min(1),
+        targetId: z.string().optional(),
+        name: z.string().optional()
+      }),
+      execute: async ({ proposalId, targetId, name }) => {
+        const store = agent.getRealityStore();
+        const resolved = resolveTargetOrSingle(store, { targetId, name });
+        if (!resolved.target) {
+          return { rejected: false as const, message: resolved.message };
+        }
+
+        return rejectSectionProposal(store, resolved.target.id, proposalId);
       }
     }),
 

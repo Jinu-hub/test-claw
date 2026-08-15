@@ -96,14 +96,26 @@ function Chat() {
           if (scanned) {
             const sectionNote =
               scanned.patchedSectionKeys.length > 0
-                ? ` · ${scanned.patchedSectionKeys.join(", ")}`
+                ? ` · patched ${scanned.patchedSectionKeys.join(", ")}`
                 : "";
+            const proposalNote =
+              scanned.proposalsCreated > 0
+                ? ` · ${scanned.proposalsCreated} proposal${scanned.proposalsCreated === 1 ? "" : "s"}`
+                : "";
+            const titleParts: string[] = [];
+            titleParts.push(
+              scanned.patchesCreated === 0
+                ? "0 patches"
+                : `${scanned.patchesCreated} patch${scanned.patchesCreated === 1 ? "" : "es"}`
+            );
+            if (scanned.proposalsCreated > 0) {
+              titleParts.push(
+                `${scanned.proposalsCreated} proposal${scanned.proposalsCreated === 1 ? "" : "s"}`
+              );
+            }
             toasts.add({
-              title:
-                scanned.patchesCreated === 0
-                  ? "Scan complete · 0 patches"
-                  : `Scan complete · ${scanned.patchesCreated} patch${scanned.patchesCreated === 1 ? "" : "es"}`,
-              description: `${scanned.name || scanned.targetId}${sectionNote}`,
+              title: `Scan complete · ${titleParts.join(" · ")}`,
+              description: `${scanned.name || scanned.targetId}${sectionNote}${proposalNote}`,
               timeout: 0
             });
           }
@@ -192,7 +204,7 @@ function Chat() {
             </h1>
             <Badge variant="secondary">
               <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
-              Phase 7
+              Phase 8
             </Badge>
           </div>
           <div className="flex items-center gap-3">
@@ -244,8 +256,8 @@ function Chat() {
                 <div className="flex flex-col items-center gap-4">
                   <div className="max-w-md text-center">
                     <Text variant="secondary">
-                      Ask what changed, filter by section or time, or schedule
-                      automatic scans. Patch 0 means nothing meaningful changed.
+                      Scans patch existing facts and propose new capability
+                      sections for you to accept. Patch 0 means nothing changed.
                     </Text>
                   </div>
                   {examplePrompts.length > 0 ? (

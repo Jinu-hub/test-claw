@@ -26,6 +26,8 @@ export type RealityScannedEvent = {
   name: string;
   patchesCreated: number;
   patchedSectionKeys: string[];
+  proposalsCreated: number;
+  proposedSectionKeys: string[];
   skipped: number;
   llmCalled: boolean;
   message: string;
@@ -118,6 +120,16 @@ export function parseRealityScannedEvent(
     patchedSectionKeys:
       "patchedSectionKeys" in data && Array.isArray(data.patchedSectionKeys)
         ? data.patchedSectionKeys.filter(
+            (item): item is string => typeof item === "string"
+          )
+        : [],
+    proposalsCreated:
+      "proposalsCreated" in data && typeof data.proposalsCreated === "number"
+        ? data.proposalsCreated
+        : 0,
+    proposedSectionKeys:
+      "proposedSectionKeys" in data && Array.isArray(data.proposedSectionKeys)
+        ? data.proposedSectionKeys.filter(
             (item): item is string => typeof item === "string"
           )
         : [],

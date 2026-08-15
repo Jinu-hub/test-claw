@@ -71,6 +71,21 @@ export function ensureRealitySchema(sql: SqlExecutor): void {
   `;
 
   sql`
+    CREATE TABLE IF NOT EXISTS section_proposals (
+      id TEXT PRIMARY KEY,
+      target_id TEXT NOT NULL,
+      section_key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL,
+      resolved_at TEXT
+    )
+  `;
+
+  sql`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_evidences_target_hash
     ON evidences(target_id, content_hash)
   `;
@@ -78,6 +93,11 @@ export function ensureRealitySchema(sql: SqlExecutor): void {
   sql`
     CREATE INDEX IF NOT EXISTS idx_patches_target_created
     ON patches(target_id, created_at)
+  `;
+
+  sql`
+    CREATE INDEX IF NOT EXISTS idx_section_proposals_target_status
+    ON section_proposals(target_id, status)
   `;
 
   const evidenceColumns = sql<{ name: string }>`PRAGMA table_info(evidences)`;
