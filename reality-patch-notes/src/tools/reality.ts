@@ -57,8 +57,9 @@ Mandatory tool use:
 - "관심 없고" / "만 봐줘" → setWatchIntent before confirming
 - "초기 Reality" / "baseline 만들어" → initializeReality
 - "근거" / "evidence" / "근거 링크" → getEvidence
-- "Watch Intent" / "관심사" / "관심 설정" → getReality, then summarize Focus / Ignore / Priority only
-- "알고 있는 내용" / "Reality Context" → getReality, then summarize Current Reality clearly
+- "Watch Intent" / "관심사" / "관심 설정" → getReality part=watch-intent, then summarize Focus / Ignore / Priority only
+- "알고 있는 내용" / "Reality Context" → getReality part=summary, then summarize clearly
+- After every tool result, always write a user-facing briefing
 - "스캔" / "scan" / "새로고침해서 확인" → scanTarget
 - "오늘 뭐 바뀐" / "패치" → getPatches
 - "새 기능 제안" / "섹션 제안" / "제안 목록" → listSectionProposals
@@ -538,12 +539,18 @@ export function createRealityTools(agent: RealityToolHost) {
 
     getReality: tool({
       description:
-        "Read the current Reality Context markdown for a target from R2.",
+        "Read Reality Context for a target. Use part=watch-intent for Focus/Ignore/Priority only, part=summary for section overview, part=full for complete markdown. Prefer watch-intent or summary for chat answers so you can still write a briefing.",
       inputSchema: z.object({
         targetId: z.string().optional(),
-        name: z.string().optional()
+        name: z.string().optional(),
+        part: z
+          .enum(["watch-intent", "summary", "full"])
+          .optional()
+          .describe(
+            "watch-intent (interest settings), summary (section titles), or full markdown"
+          )
       }),
-      execute: async ({ targetId, name }) => {
+      execute: async ({ targetId, name, part }) => {
         const store = agent.getRealityStore();
         const resolved = resolveTargetOrSingle(store, { targetId, name });
         if (!resolved.target) {
@@ -564,15 +571,53 @@ export function createRealityTools(agent: RealityToolHost) {
           };
         }
 
+        const context = parseRealityContext(markdown, target.id);
+        const view = part ?? "summary";
+
+        if (view === "watch-intent") {
+          return {
+            targetId: target.id,
+            name: target.name,
+            found: true,
+            part: "watch-intent" as const,
+            focus: context.intent.focus,
+            ignore: context.intent.ignore,
+            priority: context.intent.priority,
+            message:
+              "Reply to the user with Focus / Ignore / Priority only. Do not dump raw JSON."
+          };
+        }
+
+        if (view === "summary") {
+          return {
+            targetId: target.id,
+            name: target.name,
+            found: true,
+            part: "summary" as const,
+            initialized: isRealityInitialized(context),
+            profile: context.profile,
+            intent: context.intent,
+            sections: context.sections.map((section) => ({
+              key: section.key,
+              title: section.title,
+              preview: section.body.slice(0, 220)
+            })),
+            openQuestions: context.openQuestions,
+            message:
+              "Summarize what is currently known in readable Korean/English for the user. Do not dump raw JSON."
+          };
+        }
+
         return {
           targetId: target.id,
           name: target.name,
           found: true,
-          initialized: isRealityInitialized(
-            parseRealityContext(markdown, target.id)
-          ),
+          part: "full" as const,
+          initialized: isRealityInitialized(context),
           objectKey: `targets/${target.id}/current.md`,
-          markdown
+          markdown,
+          message:
+            "Full markdown loaded. Still write a short user-facing briefing after this tool."
         };
       }
     })
