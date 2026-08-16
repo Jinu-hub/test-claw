@@ -64,6 +64,7 @@ export {
   listSectionProposals,
   rejectSectionProposal,
   summarizeSectionProposal,
+  syncAcceptedProposalsIntoFocus,
   upsertPendingProposal,
   type SectionProposalStatus,
   type SectionProposalSummary

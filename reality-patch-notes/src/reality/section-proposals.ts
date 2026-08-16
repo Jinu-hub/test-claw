@@ -2,12 +2,14 @@ import { addSection } from "./markdown";
 import { insertPatch } from "./patches";
 import {
   getCurrentContext,
+  listTargets,
   parseWatchIntent,
   putCurrentContext,
   upsertTarget,
   type RealityStore
 } from "./store";
-import type { TargetRow } from "./types";
+import { normalizeIntentTerm } from "./targets";
+import type { TargetRow, WatchIntent } from "./types";
 
 export type SectionProposalStatus = "pending" | "accepted" | "rejected";
 
@@ -189,6 +191,23 @@ export function upsertPendingProposal(
   return summarizeSectionProposal(row);
 }
 
+function intentIncludesTerm(list: string[], term: string): boolean {
+  const normalized = normalizeIntentTerm(term).toLowerCase();
+  if (!normalized) return true;
+  return list.some(
+    (item) => normalizeIntentTerm(item).toLowerCase() === normalized
+  );
+}
+
+function withFocusTerm(intent: WatchIntent, term: string): WatchIntent {
+  const label = term.trim();
+  if (!label || intentIncludesTerm(intent.focus, label)) return intent;
+  return {
+    ...intent,
+    focus: [...intent.focus, label]
+  };
+}
+
 export async function acceptSectionProposal(
   store: RealityStore,
   target: TargetRow,
@@ -235,6 +254,13 @@ export async function acceptSectionProposal(
     };
   }
 
+  const intent = withFocusTerm(
+    parseWatchIntent(target.watch_intent_json),
+    row.title
+  );
+  next.intent = intent;
+  next.profile.lastUpdated = now;
+
   const objectKey = await putCurrentContext(store, next);
   const evidenceIds = parseEvidenceIds(row.evidence_ids_json);
   const patch = insertPatch(store, {
@@ -255,7 +281,6 @@ export async function acceptSectionProposal(
     WHERE id = ${row.id}
   `;
 
-  const intent = parseWatchIntent(target.watch_intent_json);
   upsertTarget(store, {
     id: target.id,
     name: target.name,
@@ -276,6 +301,47 @@ export async function acceptSectionProposal(
     objectKey,
     patchId: patch.id
   };
+}
+
+/**
+ * Backfill Watch Intent focus with titles of already-accepted section proposals.
+ * Keeps Focus aligned with Reality sections the user chose to track.
+ */
+export async function syncAcceptedProposalsIntoFocus(
+  store: RealityStore
+): Promise<void> {
+  for (const target of listTargets(store)) {
+    const accepted = listSectionProposals(store, target.id, "accepted");
+    if (accepted.length === 0) continue;
+
+    let intent = parseWatchIntent(target.watch_intent_json);
+    let changed = false;
+    for (const proposal of accepted) {
+      const before = intent.focus.length;
+      intent = withFocusTerm(intent, proposal.title);
+      if (intent.focus.length !== before) changed = true;
+    }
+    if (!changed) continue;
+
+    const now = new Date().toISOString();
+    upsertTarget(store, {
+      id: target.id,
+      name: target.name,
+      description: target.description,
+      category: target.category,
+      status: target.status,
+      intent,
+      createdAt: target.created_at,
+      updatedAt: now
+    });
+
+    const context = await getCurrentContext(store, target.id);
+    if (context) {
+      context.intent = intent;
+      context.profile.lastUpdated = now;
+      await putCurrentContext(store, context);
+    }
+  }
 }
 
 export function rejectSectionProposal(

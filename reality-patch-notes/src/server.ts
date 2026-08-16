@@ -23,6 +23,7 @@ import {
   parseScheduledTaskPayload,
   scanTarget,
   seedFixtureIfNeeded,
+  syncAcceptedProposalsIntoFocus,
   type RealityStore,
   type ScanTargetResult
 } from "./reality";
@@ -53,6 +54,7 @@ export class ChatAgent extends AIChatAgent<Env> {
 
     ensureRealitySchema(this.sql.bind(this));
     await seedFixtureIfNeeded(this.sql.bind(this), this.env.REALITY_BUCKET);
+    await syncAcceptedProposalsIntoFocus(this.getRealityStore());
   }
 
   getRealityStore(): RealityStore {
