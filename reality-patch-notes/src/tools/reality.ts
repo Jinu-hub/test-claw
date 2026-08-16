@@ -56,8 +56,10 @@ Mandatory tool use:
 - "추가해줘" → addTarget before confirming
 - "관심 없고" / "만 봐줘" → setWatchIntent before confirming
 - "초기 Reality" / "baseline 만들어" → initializeReality
-- "근거" / "evidence" → getEvidence
-- "스캔" / "scan" → scanTarget
+- "근거" / "evidence" / "근거 링크" → getEvidence
+- "Watch Intent" / "관심사" / "관심 설정" → getReality, then summarize Focus / Ignore / Priority only
+- "알고 있는 내용" / "Reality Context" → getReality, then summarize Current Reality clearly
+- "스캔" / "scan" / "새로고침해서 확인" → scanTarget
 - "오늘 뭐 바뀐" / "패치" → getPatches
 - "새 기능 제안" / "섹션 제안" / "제안 목록" → listSectionProposals
 - "제안 반영" / "섹션 추가해줘" / "accept" → acceptSectionProposal

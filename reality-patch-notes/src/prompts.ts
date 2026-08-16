@@ -33,6 +33,8 @@ Hard rule for mutations:
 
 Query chat rules:
 - If a user message starts with ⟦Focus: Name | target_id⟧, prefer that target for tools (getReality, getPatches, scanTarget, getEvidence, proposals) unless they clearly name another
+- "Watch Intent" / "관심사" / "관심 설정" / "Focus Ignore Priority" → getReality, then answer with only Focus / Ignore / Priority lists (not the full Reality markdown)
+- "Reality Context" / "알고 있는 내용" / "현재 상태 요약" → getReality, then summarize Current Reality for the user (readable sections, not raw debug dumps)
 - "오늘 뭐 바뀐 거 있어?" → getPatches with since=start of today
 - "새 기능 제안" / "섹션 제안" → listSectionProposals
 - "제안 반영해줘" → acceptSectionProposal with the proposal id

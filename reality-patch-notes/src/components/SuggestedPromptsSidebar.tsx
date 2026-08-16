@@ -19,8 +19,8 @@ export function buildSuggestedPrompts(
     return [
       {
         id: "list-targets",
-        label: "저장된 Target 보기",
-        prompt: "지금 저장된 Target이 뭐야?"
+        label: "지켜보는 주제 목록",
+        prompt: "지금 지켜보는 주제가 뭐야?"
       }
     ];
   }
@@ -32,13 +32,13 @@ export function buildSuggestedPrompts(
     const first = activity!.pendingProposals[0];
     items.push({
       id: "list-proposals",
-      label: "대기 중인 섹션 제안",
-      prompt: "섹션 제안 목록 보여줘"
+      label: "새 영역 제안 보기",
+      prompt: "아직 반영 안 한 새 영역 제안 목록 보여줘"
     });
     items.push({
       id: "accept-first-proposal",
-      label: `${first.title} 수락할까?`,
-      prompt: `${first.title} 제안(${first.id})을 acceptSectionProposal로 수락할지 물어보고, 내가 동의하면 수락해줘.`
+      label: `${first.title} 반영할까?`,
+      prompt: `${first.title} 제안을 반영할지 물어보고, 내가 동의하면 수락해줘.`
     });
   }
 
@@ -51,33 +51,39 @@ export function buildSuggestedPrompts(
   } else {
     items.push({
       id: "patches-recent",
-      label: "최근 패치 보기",
-      prompt: "최근 패치 목록 보여줘"
+      label: "최근 바뀐 점",
+      prompt: "최근 바뀐 점 목록 보여줘"
     });
   }
 
   items.push({
+    id: "watch-intent",
+    label: "관심 설정 보기",
+    prompt: `${name}에서 뭘 중요하게 보고, 뭘 무시하는지 관심 설정만 정리해서 보여줘.`
+  });
+
+  items.push({
     id: "show-reality",
-    label: "Reality Context",
-    prompt: `${name} Reality Context 보여줘`
+    label: "지금 알고 있는 내용",
+    prompt: `${name}에 대해 지금까지 알고 있는 내용을 요약해서 보여줘.`
   });
 
   items.push({
     id: "scan",
-    label: "다시 스캔",
+    label: "새로고침해서 확인",
     prompt: `${name} 다시 스캔해줘`
   });
 
   items.push({
     id: "evidence",
-    label: "근거 / evidence",
-    prompt: `${name} evidence 보여줘`
+    label: "근거 링크 보기",
+    prompt: `${name} 근거 링크 보여줘`
   });
 
   if (!activity?.lastScan) {
     items.unshift({
       id: "initialize",
-      label: "초기 Reality 만들기",
+      label: "처음 상태 만들기",
       prompt: `${name} 초기 Reality 만들어줘`
     });
   }
@@ -119,11 +125,11 @@ export function SuggestedPromptsSidebar({
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {!target ? (
           <p className="px-2 py-2 text-[11px] text-kumo-subtle">
-            Select a target on the left to get tailored questions.
+            왼쪽에서 주제를 고르면 추천 질문이 바뀝니다.
           </p>
         ) : (
           <p className="px-2 pb-2 text-[11px] text-kumo-subtle truncate">
-            For {target.name}
+            {target.name} 관련
           </p>
         )}
 
