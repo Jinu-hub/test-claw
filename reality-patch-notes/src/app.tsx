@@ -29,7 +29,7 @@ import {
   XIcon,
   CircleNotchIcon
 } from "@phosphor-icons/react";
-import { featureFlags, getExamplePrompts } from "./feature-flags";
+import { featureFlags } from "./feature-flags";
 import { handleClientToolCall } from "./tools/client";
 import {
   parseRealityInitializedEvent,
@@ -48,6 +48,7 @@ import {
   type SidebarTarget,
   type TargetActivitySummary
 } from "./components/TargetSidebar";
+import { SuggestedPromptsSidebar } from "./components/SuggestedPromptsSidebar";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { ToolPartView } from "./components/ToolPartView";
 import { fileToDataUri, useAttachments } from "./hooks/useAttachments";
@@ -69,8 +70,6 @@ const ACTIVITY_REFRESH_TOOLS = new Set([
   "collectEvidence",
   "initializeReality"
 ]);
-
-const examplePrompts = getExamplePrompts();
 
 type BackgroundJob = {
   key: string;
@@ -550,23 +549,10 @@ function Chat() {
                     <Text variant="secondary">
                       Scans patch existing facts and propose new capability
                       sections for you to accept. Patch 0 means nothing changed.
+                      Use Suggested on the right to ask about the selected
+                      target.
                     </Text>
                   </div>
-                  {examplePrompts.length > 0 ? (
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {examplePrompts.map((prompt) => (
-                        <Button
-                          key={prompt}
-                          variant="outline"
-                          size="sm"
-                          disabled={isStreaming}
-                          onClick={() => sendPrompt(prompt)}
-                        >
-                          {prompt}
-                        </Button>
-                      ))}
-                    </div>
-                  ) : null}
                 </div>
               }
             />
@@ -825,6 +811,13 @@ function Chat() {
         </div>
       </div>
         </div>
+
+        <SuggestedPromptsSidebar
+          target={selectedTarget}
+          activity={activity}
+          disabled={!connected || isStreaming}
+          onAsk={sendPrompt}
+        />
       </div>
     </div>
   );
