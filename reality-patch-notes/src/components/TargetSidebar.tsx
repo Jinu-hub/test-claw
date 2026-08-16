@@ -61,7 +61,7 @@ function formatShortTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("ko-KR", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -69,19 +69,58 @@ function formatShortTime(iso: string | null | undefined): string {
   });
 }
 
-function lastScanLabel(
+function lastScanSummary(
   activity: TargetActivitySummary | null,
   scanInProgress: boolean
-): string {
-  if (scanInProgress) return "Scanning…";
-  const scan = activity?.lastScan;
-  if (!scan) return "Never scanned";
-  const when = formatShortTime(scan.finishedAt ?? scan.startedAt);
-  if (scan.patchesCreated === 0) return `${when} · Patch 0`;
-  if (scan.patchesCreated != null) {
-    return `${when} · ${scan.patchesCreated} patch${scan.patchesCreated === 1 ? "" : "es"}`;
+): { when: string; result: string } {
+  if (scanInProgress) {
+    return { when: "진행 중", result: "스캔하고 있어요" };
   }
-  return when;
+  const scan = activity?.lastScan;
+  if (!scan) {
+    return { when: "아직 없음", result: "한 번도 확인하지 않음" };
+  }
+  const when = formatShortTime(scan.finishedAt ?? scan.startedAt);
+  if (scan.patchesCreated === 0) {
+    return { when, result: "변화 없음" };
+  }
+  if (scan.patchesCreated != null) {
+    return {
+      when,
+      result: `변화 ${scan.patchesCreated}건`
+    };
+  }
+  return { when, result: "완료" };
+}
+
+function patchTypeLabel(type: string): string {
+  switch (type) {
+    case "ADDED":
+      return "추가";
+    case "CHANGED":
+      return "변경";
+    case "REMOVED":
+      return "삭제";
+    case "DEPRECATED":
+      return "중단";
+    default:
+      return type;
+  }
+}
+
+function patchTypeClass(type: string): string {
+  switch (type) {
+    case "ADDED":
+      return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
+    case "CHANGED":
+      return "bg-sky-500/15 text-sky-700 dark:text-sky-300";
+    case "REMOVED":
+      return "bg-rose-500/15 text-rose-700 dark:text-rose-300";
+    case "DEPRECATED":
+      return "bg-amber-500/15 text-amber-700 dark:text-amber-300";
+    default:
+      return "bg-kumo-control text-kumo-subtle";
+  }
 }
 
 export function TargetSidebar({
@@ -109,6 +148,9 @@ export function TargetSidebar({
 }) {
   const visible = targets.filter((target) => target.status !== "archived");
   const selected = visible.find((target) => target.id === selectedId) ?? null;
+  const scanSummary = lastScanSummary(activity, scanInProgress);
+  const recentPatches = activity?.recentPatches.slice(0, 4) ?? [];
+  const pendingProposals = activity?.pendingProposals ?? [];
 
   return (
     <aside className="hidden sm:flex w-72 shrink-0 flex-col border-r border-kumo-line bg-kumo-base">
@@ -116,7 +158,7 @@ export function TargetSidebar({
         <div className="flex items-center gap-2 min-w-0">
           <CrosshairIcon size={14} className="text-kumo-inactive shrink-0" />
           <Text size="xs" bold>
-            Targets
+            주제
           </Text>
           <span className="text-[11px] text-kumo-subtle tabular-nums">
             {visible.length}
@@ -126,7 +168,7 @@ export function TargetSidebar({
           variant="ghost"
           shape="square"
           size="sm"
-          aria-label="Refresh targets"
+          aria-label="목록 새로고침"
           disabled={!connected || loading}
           icon={
             <ArrowsClockwiseIcon
@@ -141,11 +183,11 @@ export function TargetSidebar({
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {!connected ? (
           <p className="px-2 py-3 text-xs text-kumo-subtle">
-            Connect to load targets.
+            연결되면 주제가 나타납니다.
           </p>
         ) : visible.length === 0 && !loading ? (
           <p className="px-2 py-3 text-xs text-kumo-subtle">
-            No active targets yet.
+            아직 지켜보는 주제가 없습니다.
           </p>
         ) : (
           <ul className="space-y-0.5">
@@ -173,8 +215,11 @@ export function TargetSidebar({
                           {target.name}
                         </div>
                         <div className="truncate text-[11px] text-kumo-subtle">
-                          {target.status}
-                          {target.category ? ` · ${target.category}` : ""}
+                          {target.status === "active"
+                            ? "지켜보는 중"
+                            : target.status === "paused"
+                              ? "일시 중지"
+                              : target.status}
                         </div>
                       </div>
                     </div>
@@ -187,53 +232,62 @@ export function TargetSidebar({
 
         {selected && (
           <div className="mt-3 border-t border-kumo-line pt-3 px-1 space-y-3">
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-kumo-subtle px-1.5 mb-1">
-                Last scan
-              </div>
-              <p className="px-1.5 text-xs text-kumo-default">
-                {activityLoading && !activity
-                  ? "Loading…"
-                  : lastScanLabel(activity, scanInProgress)}
+            <section className="rounded-xl bg-kumo-control/35 px-3 py-2.5">
+              <p className="text-[11px] font-medium text-kumo-subtle">
+                마지막 확인
               </p>
-              {!scanInProgress &&
-                activity?.lastScan?.proposalsCreated != null &&
-                activity.lastScan.proposalsCreated > 0 && (
-                  <p className="px-1.5 text-[11px] text-kumo-subtle">
-                    +{activity.lastScan.proposalsCreated} proposal
-                    {activity.lastScan.proposalsCreated === 1 ? "" : "s"} last
-                    run
+              {activityLoading && !activity ? (
+                <p className="mt-1 text-sm text-kumo-subtle">불러오는 중…</p>
+              ) : (
+                <>
+                  <p className="mt-1 text-sm font-medium text-kumo-default">
+                    {scanSummary.result}
                   </p>
-                )}
-            </div>
+                  <p className="mt-0.5 text-[11px] text-kumo-subtle">
+                    {scanSummary.when}
+                    {!scanInProgress &&
+                    activity?.lastScan?.proposalsCreated != null &&
+                    activity.lastScan.proposalsCreated > 0
+                      ? ` · 새 제안 ${activity.lastScan.proposalsCreated}건`
+                      : ""}
+                  </p>
+                </>
+              )}
+            </section>
 
-            <div>
-              <div className="flex items-center justify-between gap-2 px-1.5 mb-1">
-                <div className="text-[10px] uppercase tracking-wide text-kumo-subtle">
-                  Patches today
-                </div>
-                <span className="text-[11px] tabular-nums text-kumo-subtle">
+            <section>
+              <div className="flex items-baseline justify-between gap-2 px-1 mb-1.5">
+                <p className="text-[11px] font-medium text-kumo-subtle">
+                  오늘 바뀐 점
+                </p>
+                <span className="rounded-full bg-kumo-control px-1.5 py-0.5 text-[10px] tabular-nums text-kumo-subtle">
                   {activity?.patchesToday ?? 0}
                 </span>
               </div>
-              {(activity?.recentPatches.length ?? 0) === 0 ? (
-                <p className="px-1.5 text-[11px] text-kumo-subtle">No patches yet</p>
+              {recentPatches.length === 0 ? (
+                <p className="px-1 text-[12px] leading-relaxed text-kumo-subtle">
+                  아직 기록된 변화가 없습니다.
+                </p>
               ) : (
-                <ul className="space-y-0.5">
-                  {activity!.recentPatches.map((patch) => (
+                <ul className="space-y-1">
+                  {recentPatches.map((patch) => (
                     <li key={patch.id}>
                       <button
                         type="button"
-                        className="w-full text-left rounded-md px-1.5 py-1 hover:bg-kumo-control/60 transition-colors"
+                        className="w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-kumo-control/70"
                         onClick={() =>
-                          onAsk(`Show patch ${patch.id} for this target`)
+                          onAsk(`${patch.title} 패치 자세히 설명해줘`)
                         }
                       >
-                        <div className="truncate text-xs text-kumo-default">
-                          {patch.title}
-                        </div>
-                        <div className="truncate text-[10px] text-kumo-subtle">
-                          {patch.type} · {patch.sectionKey}
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${patchTypeClass(patch.type)}`}
+                          >
+                            {patchTypeLabel(patch.type)}
+                          </span>
+                          <span className="truncate text-[12px] font-medium text-kumo-default">
+                            {patch.title}
+                          </span>
                         </div>
                       </button>
                     </li>
@@ -242,42 +296,44 @@ export function TargetSidebar({
               )}
               <button
                 type="button"
-                className="mt-1 px-1.5 text-[11px] text-kumo-brand hover:underline"
+                className="mt-1.5 px-1 text-[11px] font-medium text-kumo-brand hover:underline"
                 onClick={() => onAsk("오늘 뭐 바뀐 거 있어?")}
               >
-                Ask about today&apos;s patches
+                오늘 변화 물어보기
               </button>
-            </div>
+            </section>
 
-            <div>
-              <div className="flex items-center justify-between gap-2 px-1.5 mb-1">
-                <div className="text-[10px] uppercase tracking-wide text-kumo-subtle">
-                  Pending proposals
-                </div>
-                <span className="text-[11px] tabular-nums text-kumo-subtle">
-                  {activity?.pendingProposals.length ?? 0}
+            <section>
+              <div className="flex items-baseline justify-between gap-2 px-1 mb-1.5">
+                <p className="text-[11px] font-medium text-kumo-subtle">
+                  대기 중인 제안
+                </p>
+                <span className="rounded-full bg-kumo-control px-1.5 py-0.5 text-[10px] tabular-nums text-kumo-subtle">
+                  {pendingProposals.length}
                 </span>
               </div>
-              {(activity?.pendingProposals.length ?? 0) === 0 ? (
-                <p className="px-1.5 text-[11px] text-kumo-subtle">None pending</p>
+              {pendingProposals.length === 0 ? (
+                <p className="px-1 text-[12px] leading-relaxed text-kumo-subtle">
+                  새 영역 제안이 없습니다.
+                </p>
               ) : (
-                <ul className="space-y-0.5">
-                  {activity!.pendingProposals.map((proposal) => (
+                <ul className="space-y-1">
+                  {pendingProposals.map((proposal) => (
                     <li key={proposal.id}>
                       <button
                         type="button"
-                        className="w-full text-left rounded-md px-1.5 py-1 hover:bg-kumo-control/60 transition-colors"
+                        className="w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-kumo-control/70"
                         onClick={() =>
                           onAsk(
-                            `섹션 제안 ${proposal.id} 설명해줘. 필요하면 accept 할지 물어봐.`
+                            `${proposal.title} 제안을 설명해줘. 필요하면 반영할지 물어봐.`
                           )
                         }
                       >
-                        <div className="truncate text-xs text-kumo-default">
+                        <div className="truncate text-[12px] font-medium text-kumo-default">
                           {proposal.title}
                         </div>
-                        <div className="truncate text-[10px] text-kumo-subtle">
-                          {proposal.sectionKey}
+                        <div className="mt-0.5 text-[10px] text-kumo-subtle">
+                          반영 대기
                         </div>
                       </button>
                     </li>
@@ -286,12 +342,12 @@ export function TargetSidebar({
               )}
               <button
                 type="button"
-                className="mt-1 px-1.5 text-[11px] text-kumo-brand hover:underline"
-                onClick={() => onAsk("섹션 제안 목록 보여줘")}
+                className="mt-1.5 px-1 text-[11px] font-medium text-kumo-brand hover:underline"
+                onClick={() => onAsk("아직 반영 안 한 새 영역 제안 목록 보여줘")}
               >
-                List proposals
+                제안 목록 보기
               </button>
-            </div>
+            </section>
           </div>
         )}
       </div>
