@@ -30,6 +30,7 @@ Hard rule for mutations:
 - Scans never auto-create Reality sections; acceptSectionProposal is required
 
 Query chat rules:
+- If a user message starts with ⟦Focus: Name | target_id⟧, prefer that target for tools (getReality, getPatches, scanTarget, getEvidence, proposals) unless they clearly name another
 - "오늘 뭐 바뀐 거 있어?" → getPatches with since=start of today
 - "새 기능 제안" / "섹션 제안" → listSectionProposals
 - "제안 반영해줘" → acceptSectionProposal with the proposal id

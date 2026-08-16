@@ -1,7 +1,7 @@
 import { Suspense, useCallback, useState, useEffect, useRef } from "react";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
-import { isToolUIPart, type UIMessage } from "ai";
+import { isToolUIPart, getToolName, type UIMessage } from "ai";
 import type { ChatAgent } from "./server";
 import {
   Badge,
@@ -40,9 +40,21 @@ import {
   workflowStepLabel
 } from "./tools/shared";
 import { McpPanel, useMcpState } from "./components/McpPanel";
+import {
+  TargetSidebar,
+  stripTargetFocus,
+  withTargetFocus,
+  type SidebarTarget
+} from "./components/TargetSidebar";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { ToolPartView } from "./components/ToolPartView";
 import { fileToDataUri, useAttachments } from "./hooks/useAttachments";
+
+const TARGET_MUTATING_TOOLS = new Set([
+  "addTarget",
+  "removeTarget",
+  "updateWatchIntent"
+]);
 
 const examplePrompts = getExamplePrompts();
 
@@ -61,9 +73,15 @@ function Chat() {
   const [input, setInput] = useState("");
   const [showDebug, setShowDebug] = useState(false);
   const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJob[]>([]);
+  const [targets, setTargets] = useState<SidebarTarget[]>([]);
+  const [targetsLoading, setTargetsLoading] = useState(false);
+  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(
+    null
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const refreshTargetsRef = useRef<() => void>(() => {});
   const toasts = useKumoToastManager();
   const { mcpState, onMcpUpdate } = useMcpState(featureFlags.mcp);
   const {
@@ -150,6 +168,7 @@ function Chat() {
           const initialized = parseRealityInitializedEvent(data);
           if (initialized) {
             clearJobsForWorkflow("INITIALIZE_REALITY_WORKFLOW");
+            refreshTargetsRef.current();
             toasts.add({
               title: "Reality initialized",
               description: `${initialized.name || initialized.targetId} · ${initialized.sectionKeys.length} sections`,
@@ -159,6 +178,7 @@ function Chat() {
           const scanned = parseRealityScannedEvent(data);
           if (scanned) {
             clearJobsForWorkflow("SCAN_TARGET_WORKFLOW");
+            refreshTargetsRef.current();
             const sectionNote =
               scanned.patchedSectionKeys.length > 0
                 ? ` · patched ${scanned.patchedSectionKeys.join(", ")}`
@@ -207,6 +227,55 @@ function Chat() {
     }
   });
 
+  const refreshTargets = useCallback(async () => {
+    if (!connected) return;
+    setTargetsLoading(true);
+    try {
+      const rows = (await agent.stub.listStoredTargets()) as SidebarTarget[];
+      const next = Array.isArray(rows) ? rows : [];
+      setTargets(next);
+      setSelectedTargetId((current) => {
+        if (current && next.some((row) => row.id === current)) return current;
+        const firstActive = next.find((row) => row.status === "active");
+        return firstActive?.id ?? next[0]?.id ?? null;
+      });
+    } catch (error) {
+      console.error("Failed to load targets:", error);
+    } finally {
+      setTargetsLoading(false);
+    }
+  }, [agent, connected]);
+
+  refreshTargetsRef.current = () => {
+    void refreshTargets();
+  };
+
+  useEffect(() => {
+    if (!connected) {
+      setTargets([]);
+      setSelectedTargetId(null);
+      return;
+    }
+    void refreshTargets();
+  }, [connected, refreshTargets]);
+
+  useEffect(() => {
+    if (!connected || messages.length === 0) return;
+    const recent = messages.slice(-4);
+    const shouldRefresh = recent.some((message) =>
+      message.parts.some((part) => {
+        if (!isToolUIPart(part) || part.state !== "output-available") {
+          return false;
+        }
+        return TARGET_MUTATING_TOOLS.has(getToolName(part));
+      })
+    );
+    if (shouldRefresh) void refreshTargets();
+  }, [messages, connected, refreshTargets]);
+
+  const selectedTarget =
+    targets.find((target) => target.id === selectedTargetId) ?? null;
+
   const isStreaming = status === "streaming" || status === "submitted";
 
   useEffect(() => {
@@ -229,7 +298,11 @@ function Chat() {
       | { type: "text"; text: string }
       | { type: "file"; mediaType: string; url: string }
     > = [];
-    if (text) parts.push({ type: "text", text });
+    const outbound =
+      text || selectedTarget
+        ? withTargetFocus(text, selectedTarget)
+        : "";
+    if (outbound) parts.push({ type: "text", text: outbound });
 
     if (featureFlags.images) {
       for (const att of attachments) {
@@ -241,7 +314,25 @@ function Chat() {
 
     sendMessage({ role: "user", parts });
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-  }, [input, attachments, isStreaming, sendMessage, clearAttachments]);
+  }, [
+    input,
+    attachments,
+    isStreaming,
+    sendMessage,
+    clearAttachments,
+    selectedTarget
+  ]);
+
+  const sendPrompt = useCallback(
+    (prompt: string) => {
+      if (isStreaming) return;
+      sendMessage({
+        role: "user",
+        parts: [{ type: "text", text: withTargetFocus(prompt, selectedTarget) }]
+      });
+    },
+    [isStreaming, sendMessage, selectedTarget]
+  );
 
   return (
     <div
@@ -262,7 +353,7 @@ function Chat() {
       )}
 
       <header className="px-5 py-4 bg-kumo-base border-b border-kumo-line">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold text-kumo-default">
               <span className="mr-2">⛅</span>Reality Patch Notes
@@ -311,50 +402,65 @@ function Chat() {
         </div>
       </header>
 
-      {backgroundJobs.length > 0 && (
-        <div className="px-5 py-2 bg-kumo-base border-b border-kumo-line">
-          <div className="max-w-3xl mx-auto space-y-2">
-            {backgroundJobs.map((job) => (
-              <div
-                key={job.key}
-                className="rounded-lg border border-kumo-line bg-kumo-control/40 px-3 py-2"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <CircleNotchIcon
-                      size={14}
-                      className="animate-spin text-kumo-brand shrink-0"
-                    />
-                    <div className="truncate">
-                      <Text size="xs">
-                        <span className="font-medium">{job.label}</span>
-                        <span className="text-kumo-subtle">
-                          {" "}
-                          · {job.detail}
-                        </span>
-                      </Text>
+      <div className="flex flex-1 min-h-0">
+        <TargetSidebar
+          targets={targets}
+          selectedId={selectedTargetId}
+          loading={targetsLoading}
+          connected={connected}
+          onRefresh={() => void refreshTargets()}
+          onSelect={(target) =>
+            setSelectedTargetId((current) =>
+              current === target.id ? null : target.id
+            )
+          }
+        />
+
+        <div className="flex flex-col flex-1 min-w-0">
+          {backgroundJobs.length > 0 && (
+            <div className="px-5 py-2 bg-kumo-base border-b border-kumo-line">
+              <div className="max-w-3xl mx-auto space-y-2">
+                {backgroundJobs.map((job) => (
+                  <div
+                    key={job.key}
+                    className="rounded-lg border border-kumo-line bg-kumo-control/40 px-3 py-2"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <CircleNotchIcon
+                          size={14}
+                          className="animate-spin text-kumo-brand shrink-0"
+                        />
+                        <div className="truncate">
+                          <Text size="xs">
+                            <span className="font-medium">{job.label}</span>
+                            <span className="text-kumo-subtle">
+                              {" "}
+                              · {job.detail}
+                            </span>
+                          </Text>
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        <Text size="xs" variant="secondary">
+                          {Math.round(job.percent * 100)}%
+                        </Text>
+                      </div>
+                    </div>
+                    <div className="mt-2 h-1 rounded-full bg-kumo-line overflow-hidden">
+                      <div
+                        className="h-full bg-kumo-brand transition-[width] duration-300 ease-out"
+                        style={{ width: `${Math.max(4, job.percent * 100)}%` }}
+                      />
                     </div>
                   </div>
-                  <div className="shrink-0">
-                    <Text size="xs" variant="secondary">
-                      {Math.round(job.percent * 100)}%
-                    </Text>
-                  </div>
-                </div>
-                <div className="mt-2 h-1 rounded-full bg-kumo-line overflow-hidden">
-                  <div
-                    className="h-full bg-kumo-brand transition-[width] duration-300 ease-out"
-                    style={{ width: `${Math.max(4, job.percent * 100)}%` }}
-                  />
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            </div>
+          )}
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-5 py-6 space-y-5">
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-3xl mx-auto px-5 py-6 space-y-5">
           {messages.length === 0 && (
             <Empty
               icon={<ChatCircleDotsIcon size={32} />}
@@ -375,12 +481,7 @@ function Chat() {
                           variant="outline"
                           size="sm"
                           disabled={isStreaming}
-                          onClick={() => {
-                            sendMessage({
-                              role: "user",
-                              parts: [{ type: "text", text: prompt }]
-                            });
-                          }}
+                          onClick={() => sendPrompt(prompt)}
                         >
                           {prompt}
                         </Button>
@@ -473,10 +574,12 @@ function Chat() {
                     if (!part.text) return null;
 
                     if (isUser) {
+                      const displayText = stripTargetFocus(part.text);
+                      if (!displayText.trim()) return null;
                       return (
                         <div key={key} className="flex justify-end">
                           <div className="max-w-[85%] px-4 py-2.5 rounded-2xl rounded-br-md bg-kumo-contrast text-kumo-inverse leading-relaxed">
-                            {part.text}
+                            {displayText}
                           </div>
                         </div>
                       );
@@ -516,6 +619,21 @@ function Chat() {
           }}
           className="max-w-3xl mx-auto px-5 py-4"
         >
+          {selectedTarget && (
+            <div className="mb-2 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-kumo-line bg-kumo-control/50 px-2.5 py-1 text-xs text-kumo-default">
+                Focus: {selectedTarget.name}
+                <button
+                  type="button"
+                  className="text-kumo-subtle hover:text-kumo-default"
+                  aria-label="Clear target focus"
+                  onClick={() => setSelectedTargetId(null)}
+                >
+                  <XIcon size={12} />
+                </button>
+              </span>
+            </div>
+          )}
           {featureFlags.images && (
             <input
               ref={fileInputRef}
@@ -588,7 +706,9 @@ function Chat() {
               placeholder={
                 featureFlags.images && attachments.length > 0
                   ? "Add a message or send images..."
-                  : "Ask for evidence, re-collect sources, or read Reality..."
+                  : selectedTarget
+                    ? `Ask about ${selectedTarget.name}...`
+                    : "Select a target, then ask about Reality, patches, or evidence..."
               }
               disabled={!connected || isStreaming}
               rows={1}
@@ -623,6 +743,8 @@ function Chat() {
         </form>
         <div className="flex justify-center pb-3">
           <PoweredByCloudflare href="https://developers.cloudflare.com/agents/" />
+        </div>
+      </div>
         </div>
       </div>
     </div>
