@@ -17,6 +17,7 @@ import {
   getCurrentContextMarkdown,
   getSourcePack,
   getTarget,
+  getTargetActivitySummary,
   isRealityInitialized,
   listTargets,
   parseScheduledTaskPayload,
@@ -28,6 +29,7 @@ import {
 import { collectServerTools, composeSystemPrompt } from "./tools";
 import {
   MAX_TOOL_STEPS,
+  REALITY_ACTIVITY_CHANGED_TYPE,
   REALITY_INITIALIZED_TYPE,
   REALITY_SCANNED_TYPE,
   SCHEDULED_TASK_TYPE,
@@ -273,6 +275,30 @@ export class ChatAgent extends AIChatAgent<Env> {
   @callable()
   async listStoredTargets() {
     return listTargets(this.getRealityStore());
+  }
+
+  @callable()
+  async getTargetActivity(targetId: string) {
+    const store = this.getRealityStore();
+    const target = getTarget(store, targetId);
+    if (!target) {
+      return { found: false as const, targetId };
+    }
+    return {
+      found: true as const,
+      ...getTargetActivitySummary(store, targetId)
+    };
+  }
+
+  notifyActivityChanged(targetId: string, reason: string) {
+    this.broadcast(
+      JSON.stringify({
+        type: REALITY_ACTIVITY_CHANGED_TYPE,
+        targetId,
+        reason,
+        timestamp: new Date().toISOString()
+      })
+    );
   }
 
   @callable()

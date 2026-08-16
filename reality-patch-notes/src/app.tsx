@@ -34,6 +34,7 @@ import { handleClientToolCall } from "./tools/client";
 import {
   parseRealityInitializedEvent,
   parseRealityScannedEvent,
+  parseRealityActivityChangedEvent,
   parseScheduledTaskEvent,
   parseWorkflowProgressEvent,
   workflowKindLabel,
@@ -44,7 +45,8 @@ import {
   TargetSidebar,
   stripTargetFocus,
   withTargetFocus,
-  type SidebarTarget
+  type SidebarTarget,
+  type TargetActivitySummary
 } from "./components/TargetSidebar";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { ToolPartView } from "./components/ToolPartView";
@@ -54,6 +56,18 @@ const TARGET_MUTATING_TOOLS = new Set([
   "addTarget",
   "removeTarget",
   "updateWatchIntent"
+]);
+
+const ACTIVITY_REFRESH_TOOLS = new Set([
+  "addTarget",
+  "removeTarget",
+  "updateWatchIntent",
+  "scanTarget",
+  "acceptSectionProposal",
+  "rejectSectionProposal",
+  "injectTestEvidence",
+  "collectEvidence",
+  "initializeReality"
 ]);
 
 const examplePrompts = getExamplePrompts();
@@ -78,10 +92,14 @@ function Chat() {
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(
     null
   );
+  const [activity, setActivity] = useState<TargetActivitySummary | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const refreshTargetsRef = useRef<() => void>(() => {});
+  const refreshActivityRef = useRef<() => void>(() => {});
+  const selectedTargetIdRef = useRef<string | null>(null);
   const toasts = useKumoToastManager();
   const { mcpState, onMcpUpdate } = useMcpState(featureFlags.mcp);
   const {
@@ -169,6 +187,7 @@ function Chat() {
           if (initialized) {
             clearJobsForWorkflow("INITIALIZE_REALITY_WORKFLOW");
             refreshTargetsRef.current();
+            refreshActivityRef.current();
             toasts.add({
               title: "Reality initialized",
               description: `${initialized.name || initialized.targetId} · ${initialized.sectionKeys.length} sections`,
@@ -179,6 +198,7 @@ function Chat() {
           if (scanned) {
             clearJobsForWorkflow("SCAN_TARGET_WORKFLOW");
             refreshTargetsRef.current();
+            refreshActivityRef.current();
             const sectionNote =
               scanned.patchedSectionKeys.length > 0
                 ? ` · patched ${scanned.patchedSectionKeys.join(", ")}`
@@ -203,6 +223,10 @@ function Chat() {
               description: `${scanned.name || scanned.targetId}${sectionNote}${proposalNote}`,
               timeout: 0
             });
+          }
+          const activityChanged = parseRealityActivityChangedEvent(data);
+          if (activityChanged) {
+            refreshActivityRef.current();
           }
         } catch {
           // Not JSON or not our event
@@ -246,35 +270,83 @@ function Chat() {
     }
   }, [agent, connected]);
 
+  const refreshActivity = useCallback(async () => {
+    const targetId = selectedTargetIdRef.current;
+    if (!connected || !targetId) {
+      setActivity(null);
+      return;
+    }
+    setActivityLoading(true);
+    try {
+      const result = (await agent.stub.getTargetActivity(targetId)) as
+        | ({ found: true } & TargetActivitySummary)
+        | { found: false; targetId: string };
+      if (result.found && result.targetId === selectedTargetIdRef.current) {
+        setActivity({
+          targetId: result.targetId,
+          lastScan: result.lastScan,
+          patchesToday: result.patchesToday,
+          recentPatches: result.recentPatches,
+          pendingProposals: result.pendingProposals
+        });
+      } else if (!result.found) {
+        setActivity(null);
+      }
+    } catch (error) {
+      console.error("Failed to load target activity:", error);
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [agent, connected]);
+
   refreshTargetsRef.current = () => {
     void refreshTargets();
   };
+  refreshActivityRef.current = () => {
+    void refreshActivity();
+  };
+  selectedTargetIdRef.current = selectedTargetId;
 
   useEffect(() => {
     if (!connected) {
       setTargets([]);
       setSelectedTargetId(null);
+      setActivity(null);
       return;
     }
     void refreshTargets();
   }, [connected, refreshTargets]);
 
   useEffect(() => {
+    void refreshActivity();
+  }, [selectedTargetId, refreshActivity]);
+
+  useEffect(() => {
     if (!connected || messages.length === 0) return;
     const recent = messages.slice(-4);
-    const shouldRefresh = recent.some((message) =>
-      message.parts.some((part) => {
-        if (!isToolUIPart(part) || part.state !== "output-available") {
-          return false;
-        }
-        return TARGET_MUTATING_TOOLS.has(getToolName(part));
-      })
-    );
-    if (shouldRefresh) void refreshTargets();
-  }, [messages, connected, refreshTargets]);
+    let refreshList = false;
+    let refreshAct = false;
+    for (const message of recent) {
+      for (const part of message.parts) {
+        if (!isToolUIPart(part) || part.state !== "output-available") continue;
+        const name = getToolName(part);
+        if (TARGET_MUTATING_TOOLS.has(name)) refreshList = true;
+        if (ACTIVITY_REFRESH_TOOLS.has(name)) refreshAct = true;
+      }
+    }
+    if (refreshList) void refreshTargets();
+    if (refreshAct) void refreshActivity();
+  }, [messages, connected, refreshTargets, refreshActivity]);
 
   const selectedTarget =
     targets.find((target) => target.id === selectedTargetId) ?? null;
+
+  const scanInProgress = backgroundJobs.some(
+    (job) =>
+      job.workflowName === "SCAN_TARGET_WORKFLOW" &&
+      (job.detail.includes(selectedTarget?.name ?? "\0") ||
+        job.key.includes(selectedTargetId ?? "\0"))
+  );
 
   const isStreaming = status === "streaming" || status === "submitted";
 
@@ -408,12 +480,19 @@ function Chat() {
           selectedId={selectedTargetId}
           loading={targetsLoading}
           connected={connected}
-          onRefresh={() => void refreshTargets()}
+          activity={activity}
+          activityLoading={activityLoading}
+          scanInProgress={scanInProgress}
+          onRefresh={() => {
+            void refreshTargets();
+            void refreshActivity();
+          }}
           onSelect={(target) =>
             setSelectedTargetId((current) =>
               current === target.id ? null : target.id
             )
           }
+          onAsk={sendPrompt}
         />
 
         <div className="flex flex-col flex-1 min-w-0">

@@ -1,6 +1,7 @@
 export const SCHEDULED_TASK_TYPE = "scheduled-task";
 export const REALITY_INITIALIZED_TYPE = "reality-initialized";
 export const REALITY_SCANNED_TYPE = "reality-scanned";
+export const REALITY_ACTIVITY_CHANGED_TYPE = "reality-activity-changed";
 export const WORKFLOW_PROGRESS_TYPE = "workflow-progress";
 
 export const MAX_TOOL_STEPS = 20;
@@ -32,6 +33,13 @@ export type RealityScannedEvent = {
   skipped: number;
   llmCalled: boolean;
   message: string;
+  timestamp: string;
+};
+
+export type RealityActivityChangedEvent = {
+  type: typeof REALITY_ACTIVITY_CHANGED_TYPE;
+  targetId: string;
+  reason: string;
   timestamp: string;
 };
 
@@ -188,6 +196,33 @@ export function parseRealityScannedEvent(
         : false,
     message:
       "message" in data && typeof data.message === "string" ? data.message : "",
+    timestamp:
+      "timestamp" in data && typeof data.timestamp === "string"
+        ? data.timestamp
+        : new Date().toISOString()
+  };
+}
+
+export function parseRealityActivityChangedEvent(
+  data: unknown
+): RealityActivityChangedEvent | null {
+  if (
+    typeof data !== "object" ||
+    data === null ||
+    !("type" in data) ||
+    data.type !== REALITY_ACTIVITY_CHANGED_TYPE
+  ) {
+    return null;
+  }
+
+  return {
+    type: REALITY_ACTIVITY_CHANGED_TYPE,
+    targetId:
+      "targetId" in data && typeof data.targetId === "string"
+        ? data.targetId
+        : "",
+    reason:
+      "reason" in data && typeof data.reason === "string" ? data.reason : "",
     timestamp:
       "timestamp" in data && typeof data.timestamp === "string"
         ? data.timestamp

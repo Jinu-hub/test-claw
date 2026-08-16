@@ -34,6 +34,7 @@ export type RealityToolHost = {
   startScanTarget(
     targetId: string
   ): Promise<{ workflowId: string; targetId: string }>;
+  notifyActivityChanged(targetId: string, reason: string): void;
 };
 
 const stringList = z.array(z.string().min(1)).optional();
@@ -65,6 +66,8 @@ Mandatory tool use:
 - "테스트 evidence" / "세션 시간" → injectTestEvidence kind=sandbox
 - "새 섹션 테스트" / "Voice 테스트 evidence" → injectTestEvidence kind=new-section
 - Never claim a scan, proposal, or patch unless the matching tool returned it
+- Never claim pending proposals are empty unless listSectionProposals returned count 0
+- Never claim accept/reject succeeded unless the tool returned accepted/rejected: true
 - Scans do NOT auto-add sections; proposals need acceptSectionProposal
 - Patch 0 after scanning the same docs is success
 
@@ -366,11 +369,18 @@ export function createRealityTools(agent: RealityToolHost) {
         }
 
         try {
-          return await acceptSectionProposal(
+          const result = await acceptSectionProposal(
             store,
             resolved.target,
             proposalId
           );
+          if (result.accepted) {
+            agent.notifyActivityChanged(
+              resolved.target.id,
+              "acceptSectionProposal"
+            );
+          }
+          return result;
         } catch (error) {
           return {
             accepted: false as const,
@@ -395,7 +405,18 @@ export function createRealityTools(agent: RealityToolHost) {
           return { rejected: false as const, message: resolved.message };
         }
 
-        return rejectSectionProposal(store, resolved.target.id, proposalId);
+        const result = rejectSectionProposal(
+          store,
+          resolved.target.id,
+          proposalId
+        );
+        if (result.rejected) {
+          agent.notifyActivityChanged(
+            resolved.target.id,
+            "rejectSectionProposal"
+          );
+        }
+        return result;
       }
     }),
 

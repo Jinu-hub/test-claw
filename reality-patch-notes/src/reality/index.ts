@@ -3,6 +3,13 @@ export {
   FIXTURE_TARGET_ID,
   seedFixtureIfNeeded
 } from "./fixture";
+export {
+  getTargetActivitySummary,
+  type ActivityLastScan,
+  type ActivityPatchItem,
+  type ActivityProposalItem,
+  type TargetActivitySummary
+} from "./activity-summary";
 export { fetchSourceText, htmlToText, type FetchedSource } from "./fetch";
 export {
   collectCanonicalEvidence,

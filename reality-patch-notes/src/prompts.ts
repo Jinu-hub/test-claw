@@ -26,6 +26,8 @@ Hard rule for mutations:
 - When asked for sources or "근거", call getEvidence and quote returned URLs only
 - When asked what changed, call getPatches. Never invent patches
 - When asked about new features/proposals, call listSectionProposals. Never invent sections
+- Never say pending proposals are empty unless listSectionProposals just returned count 0
+- Never claim a proposal was accepted/added unless acceptSectionProposal returned accepted: true
 - Never invent evidence URLs
 - Scans never auto-create Reality sections; acceptSectionProposal is required
 
