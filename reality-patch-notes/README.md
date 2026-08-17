@@ -100,7 +100,12 @@ src/
   server.ts              # ChatAgent DO: RPC, chat, workflow 위임
   prompts.ts             # 제품 system prompt
   feature-flags.ts       # 스타터 데모 on/off (현재 전부 false)
-  app.tsx                # 3열 UI + WebSocket 이벤트 + RPC refresh
+  app.tsx                # re-exports app/App.tsx
+  app/
+    App.tsx              # Toasty shell
+    Chat.tsx             # 3-column layout
+    hooks/               # useAgentSession (WS), useTargetData (RPC)
+    components/          # ChatHeader, ChatTranscript, ChatInput, …
   client.tsx             # React 진입점
 
   reality/               # ★ 도메인 (SQLite + R2)

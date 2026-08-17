@@ -6,7 +6,7 @@
 export { configureMcpOAuth, type McpToolHost } from "./features/mcp";
 export { imagesPrompt } from "./features/images";
 export { McpPanel, useMcpState } from "./components/McpPanel";
-export { fileToDataUri, useAttachments } from "./hooks/useAttachments";
+export { fileToDataUri, useAttachments, type Attachment } from "./hooks/useAttachments";
 export { handleClientToolCall } from "./tools/client";
 export { calculatePrompt, createCalculateTools } from "./tools/calculate";
 export {

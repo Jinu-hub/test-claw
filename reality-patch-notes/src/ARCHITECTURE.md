@@ -123,7 +123,20 @@ Workflow는 `ChatAgent` 메서드를 `step.do`로 호출. 진행률은 `reportPr
 
 도구별 추가 지침: `tools/reality.ts` (`realityPrompt`), `tools/reality-schedule.ts`.
 
-## 8. UI — `src/app.tsx` + `components/`
+## 8. UI — `src/app/`
+
+| File | 역할 |
+|------|------|
+| `App.tsx` | Toasty + Suspense shell |
+| `Chat.tsx` | 3열 레이아웃 조립 |
+| `hooks/useAgentSession.ts` | WebSocket + chat stream + broadcast |
+| `hooks/useTargetData.ts` | RPC sidebar (targets, activity) |
+| `components/ChatHeader.tsx` | 헤더 |
+| `components/BackgroundJobsBar.tsx` | Workflow 진행률 |
+| `components/ChatTranscript.tsx` | 말풍선 + ToolPartView |
+| `components/ChatInput.tsx` | 입력 + Focus chip |
+
+Legacy entry: `src/app.tsx` re-exports `app/App.tsx`.
 
 ### 연결 3종
 
@@ -214,6 +227,6 @@ Reality tools/prompts는 **항상 on**.
 |-------|------|------|
 | 1 | README + ARCHITECTURE (이 문서) | ✅ |
 | 2 | 스타터 데모 → `src/starter/` 격리 | ✅ |
-| 3 | `app.tsx` hook/컴포넌트 분리 | pending |
+| 3 | `app.tsx` hook/컴포넌트 분리 | ✅ |
 | 4 | 모듈 머리말 + 타입 중복 제거 | pending |
 | 5 | Phase N 문구 → capability 이름 | pending |
