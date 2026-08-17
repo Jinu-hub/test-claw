@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { CALCULATE_APPROVAL_THRESHOLD } from "./shared";
+import { CALCULATE_APPROVAL_THRESHOLD } from "../../tools/shared";
 
 export const calculatePrompt =
   "You can run calculations. Large-number calculations require user approval.";

@@ -1,8 +1,17 @@
 import { featureFlags } from "../feature-flags";
-import { imagesPrompt } from "../features/images";
-import type { McpToolHost } from "../features/mcp";
 import { REALITY_SYSTEM_PROMPT } from "../prompts";
-import { calculatePrompt, createCalculateTools } from "./calculate";
+import {
+  calculatePrompt,
+  createCalculateTools,
+  createScheduleTools,
+  createTimezoneTools,
+  createWeatherTools,
+  getSchedulePromptFragment,
+  imagesPrompt,
+  type McpToolHost,
+  timezonePrompt,
+  weatherPrompt
+} from "../starter";
 import {
   createRealityTools,
   realityPrompt,
@@ -13,9 +22,6 @@ import {
   realitySchedulePrompt,
   type RealityScheduleToolHost
 } from "./reality-schedule";
-import { createScheduleTools, getSchedulePromptFragment } from "./schedule";
-import { createTimezoneTools, timezonePrompt } from "./timezone";
-import { createWeatherTools, weatherPrompt } from "./weather";
 import type { ScheduleToolHost } from "./shared";
 
 export function composeSystemPrompt(): string {
@@ -46,3 +52,5 @@ export function collectServerTools(
     ...(featureFlags.schedule ? createScheduleTools(agent) : {})
   };
 }
+
+export type { McpToolHost };

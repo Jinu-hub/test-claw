@@ -1,7 +1,7 @@
 import { getSchedulePrompt, scheduleSchema } from "agents/schedule";
 import { tool } from "ai";
 import { z } from "zod";
-import type { ScheduleToolHost } from "./shared";
+import type { ScheduleToolHost } from "../../tools/shared";
 
 export function getSchedulePromptFragment(): string {
   return `${getSchedulePrompt({ date: new Date() })}

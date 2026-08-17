@@ -120,7 +120,13 @@ src/
     reality.ts           # ★ 채팅이 Reality를 건드리는 API
     reality-schedule.ts  # 예약 스캔
     shared.ts            # broadcast 이벤트 타입·파서
-    weather.ts …         # 스타터 데모 (featureFlags off)
+
+  starter/               # ★ Agents Starter 데모 (featureFlags off)
+    README.md
+    tools/               # weather, timezone, calculate, schedule, client
+    features/            # mcp, images
+    components/          # McpPanel
+    hooks/               # useAttachments
 
   workflows/
     initialize-reality.ts
@@ -145,7 +151,9 @@ src/
 
 ## 스타터 데모 (현재 꺼짐)
 
-`src/feature-flags.ts`에서 weather, timezone, calculate, schedule, mcp, images는 **모두 `false`**. 코드는 남아 있지만 UI·도구·프롬프트에 포함되지 않습니다. 제품 기능은 **Reality tools + reality-schedule** 입니다.
+`src/feature-flags.ts`에서 weather, timezone, calculate, schedule, mcp, images는 **모두 `false`**.  
+구현은 `src/starter/`에 격리되어 있으며 UI·도구·프롬프트에 포함되지 않습니다.  
+제품 기능은 **`src/tools/reality.ts` + `reality-schedule.ts`** 입니다.
 
 ## 채팅 예시 (제품)
 

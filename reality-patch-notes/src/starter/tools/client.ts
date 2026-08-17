@@ -1,4 +1,4 @@
-import { featureFlags } from "../feature-flags";
+import { featureFlags } from "../../feature-flags";
 
 export function handleClientToolCall({
   toolCall,

@@ -30,7 +30,13 @@ import {
   CircleNotchIcon
 } from "@phosphor-icons/react";
 import { featureFlags } from "./feature-flags";
-import { handleClientToolCall } from "./tools/client";
+import {
+  fileToDataUri,
+  handleClientToolCall,
+  McpPanel,
+  useAttachments,
+  useMcpState
+} from "./starter";
 import {
   parseRealityInitializedEvent,
   parseRealityScannedEvent,
@@ -40,7 +46,6 @@ import {
   workflowKindLabel,
   workflowStepLabel
 } from "./tools/shared";
-import { McpPanel, useMcpState } from "./components/McpPanel";
 import {
   TargetSidebar,
   stripTargetFocus,
@@ -51,7 +56,6 @@ import {
 import { SuggestedPromptsSidebar } from "./components/SuggestedPromptsSidebar";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { ToolPartView } from "./components/ToolPartView";
-import { fileToDataUri, useAttachments } from "./hooks/useAttachments";
 
 const TARGET_MUTATING_TOOLS = new Set([
   "addTarget",

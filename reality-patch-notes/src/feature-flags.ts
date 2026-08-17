@@ -1,11 +1,9 @@
 /**
  * Toggle starter capabilities without deleting their implementations.
  *
- * Server tools: `src/tools/*.ts`, composed in `src/tools/index.ts`
- * Non-tool capabilities: `src/features/` (MCP, images)
- * Client UI: gated in `src/app.tsx` (MCP panel, image attachments, example prompts)
- *
- * Phase 1–2: demo tools stay implemented but off. Reality prompts/tools are always on.
+ * Product (always on): `src/reality/`, `src/tools/reality.ts`, `src/tools/reality-schedule.ts`
+ * Starter demo (off by default): `src/starter/` — see `starter/README.md`
+ * Client UI gates: `src/app.tsx` (MCP panel, image attachments)
  */
 export const featureFlags = {
   weather: false,

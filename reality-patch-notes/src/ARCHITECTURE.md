@@ -92,7 +92,7 @@ collect/fetch sources
 | `reality.ts` | listTargets, addTarget, getReality, scanTarget, proposals, … |
 | `reality-schedule.ts` | scheduleScan, listScheduledScans, cancelScheduledScan |
 | `shared.ts` | broadcast event types + parsers, MAX_TOOL_STEPS |
-| `weather.ts`, `timezone.ts`, … | 스타터 데모 (`featureFlags` off) |
+| `starter/*` | Agents Starter 데모 (`featureFlags` off) — see `starter/README.md` |
 
 `reality.ts`의 `RealityToolHost` 인터페이스 = `server.ts`가 구현해야 하는 workflow/RPC hooks.
 
@@ -186,7 +186,7 @@ Workflow는 `ChatAgent` 메서드를 `step.do`로 호출. 진행률은 `reportPr
 
 | Flag | 기본 | 코드 위치 |
 |------|------|-----------|
-| weather, timezone, calculate, schedule, mcp, images | `false` | `tools/*`, `features/*`, `app.tsx` gates |
+| weather, timezone, calculate, schedule, mcp, images | `false` | `starter/*` (gated in `tools/index.ts`, `app.tsx`) |
 
 Reality tools/prompts는 **항상 on**.
 
@@ -213,7 +213,7 @@ Reality tools/prompts는 **항상 on**.
 | Phase | 내용 | 상태 |
 |-------|------|------|
 | 1 | README + ARCHITECTURE (이 문서) | ✅ |
-| 2 | 스타터 데모 → `src/starter/` 격리 | pending |
+| 2 | 스타터 데모 → `src/starter/` 격리 | ✅ |
 | 3 | `app.tsx` hook/컴포넌트 분리 | pending |
 | 4 | 모듈 머리말 + 타입 중복 제거 | pending |
 | 5 | Phase N 문구 → capability 이름 | pending |

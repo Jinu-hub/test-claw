@@ -9,7 +9,7 @@ import {
 } from "ai";
 import { MAX_PERSISTED_MESSAGES } from "./constants";
 import { featureFlags } from "./feature-flags";
-import { configureMcpOAuth } from "./features/mcp";
+import { configureMcpOAuth } from "./starter";
 import {
   buildInitialRealityContext,
   ensureRealitySchema,
