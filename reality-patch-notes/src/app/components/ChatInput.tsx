@@ -8,10 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import { featureFlags } from "../../feature-flags";
 import { fileToDataUri, type Attachment } from "../../starter";
-import {
-  withTargetFocus,
-  type SidebarTarget
-} from "../../components/TargetSidebar";
+import { withTargetFocus, type SidebarTarget } from "../../components/TargetSidebar";
 
 export function ChatInput({
   connected,

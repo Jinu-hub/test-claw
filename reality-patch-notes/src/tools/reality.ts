@@ -1,3 +1,7 @@
+/**
+ * Chat tools for Reality — the only user-facing API that mutates or reads targets,
+ * evidence, patches, and proposals. Wired in tools/index.ts → server.onChatMessage.
+ */
 import { tool } from "ai";
 import { z } from "zod";
 import {

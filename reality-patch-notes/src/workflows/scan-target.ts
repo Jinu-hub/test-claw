@@ -1,3 +1,7 @@
+/**
+ * ScanTargetWorkflow — durable background scan with progress broadcast to UI.
+ * Calls ChatAgent.runScanTarget → reality/scan.ts.
+ */
 import {
   AgentWorkflow,
   type AgentWorkflowEvent,

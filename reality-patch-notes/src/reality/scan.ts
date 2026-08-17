@@ -1,3 +1,7 @@
+/**
+ * Scan pipeline: fetch sources → hash dedup → LLM compare → patch existing sections
+ * or create pending section proposals. Never auto-adds new Reality sections.
+ */
 import { createWorkersAI } from "workers-ai-provider";
 import { generateText, Output } from "ai";
 import { z } from "zod";

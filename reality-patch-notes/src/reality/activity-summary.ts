@@ -1,3 +1,7 @@
+/**
+ * Sidebar activity aggregate — SQLite only, for @callable getTargetActivity.
+ * Not used by chat tools; UI fetches via RPC (see TargetSidebar, useTargetData).
+ */
 import { listPendingProposals } from "./section-proposals";
 import type { RealityStore } from "./store";
 import type { ScanRunRow } from "./types";

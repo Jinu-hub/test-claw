@@ -1,3 +1,7 @@
+/**
+ * ChatAgent Durable Object — entry point for HTTP, WebSocket, RPC, and chat.
+ * Delegates domain logic to src/reality/; long jobs to Workflows in src/workflows/.
+ */
 import { createWorkersAI } from "workers-ai-provider";
 import { callable, routeAgentRequest, type Schedule } from "agents";
 import { AIChatAgent, type OnChatMessageOptions } from "@cloudflare/ai-chat";

@@ -6,10 +6,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import { isToolUIPart, getToolName, type UIMessage } from "ai";
 import type { useAgent } from "agents/react";
 import type { ChatAgent } from "../../server";
-import {
-  type SidebarTarget,
-  type TargetActivitySummary
-} from "../../components/TargetSidebar";
+import type { SidebarTarget, TargetActivitySummary } from "../../reality";
 import {
   ACTIVITY_REFRESH_TOOLS,
   TARGET_MUTATING_TOOLS

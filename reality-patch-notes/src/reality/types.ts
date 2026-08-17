@@ -39,6 +39,12 @@ export type TargetRow = {
   updated_at: string;
 };
 
+/** Subset of TargetRow returned by listStoredTargets RPC for sidebar UI. */
+export type SidebarTarget = Pick<
+  TargetRow,
+  "id" | "name" | "description" | "category" | "status"
+>;
+
 export type PatchRow = {
   id: string;
   target_id: string;

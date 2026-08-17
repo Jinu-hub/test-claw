@@ -109,6 +109,7 @@ export type {
   PatchType,
   RealityContext,
   ScanRunRow,
+  SidebarTarget,
   TargetProfile,
   TargetRow,
   TargetStatus,

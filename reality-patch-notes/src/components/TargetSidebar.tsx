@@ -1,39 +1,12 @@
+/**
+ * Left sidebar — target list + activity summary.
+ * Data via RPC (listStoredTargets, getTargetActivity), not chat tools.
+ */
 import { ArrowsClockwiseIcon, CrosshairIcon } from "@phosphor-icons/react";
 import { Button, Text } from "@cloudflare/kumo";
+import type { SidebarTarget, TargetActivitySummary } from "../reality";
 
-export type SidebarTarget = {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  status: string;
-};
-
-export type TargetActivitySummary = {
-  targetId: string;
-  lastScan: {
-    id: string;
-    status: string;
-    startedAt: string;
-    finishedAt: string | null;
-    patchesCreated: number | null;
-    proposalsCreated: number | null;
-  } | null;
-  patchesToday: number;
-  recentPatches: Array<{
-    id: string;
-    title: string;
-    type: string;
-    sectionKey: string;
-    createdAt: string;
-  }>;
-  pendingProposals: Array<{
-    id: string;
-    title: string;
-    sectionKey: string;
-    createdAt: string;
-  }>;
-};
+export type { SidebarTarget, TargetActivitySummary };
 
 /** Prefix attached to outbound chat text so the model prefers this target. */
 export function withTargetFocus(

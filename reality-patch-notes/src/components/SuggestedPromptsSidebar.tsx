@@ -1,9 +1,6 @@
 import { LightningIcon } from "@phosphor-icons/react";
 import { Text } from "@cloudflare/kumo";
-import type {
-  SidebarTarget,
-  TargetActivitySummary
-} from "./TargetSidebar";
+import type { SidebarTarget, TargetActivitySummary } from "../reality";
 
 export type SuggestedPrompt = {
   id: string;
