@@ -212,7 +212,7 @@ export async function scanTarget(input: {
   const pack = getSourcePack(target);
   if (!pack) {
     throw new Error(
-      `No canonical source pack for "${target.name}". Phase 8 currently supports Cloudflare Agents.`
+      `No canonical source pack for "${target.name}". Currently only Cloudflare Agents is supported.`
     );
   }
 
@@ -547,7 +547,7 @@ After 30 minutes the isolated execution environment is recycled.`
   };
 }
 
-/** Phase 8 verification: evidence for a capability that should become a section proposal. */
+/** Test helper: synthetic evidence that should become a section proposal after scan. */
 export async function injectNewSectionTestEvidence(
   store: RealityStore,
   target: TargetRow

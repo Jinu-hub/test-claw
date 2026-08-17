@@ -40,7 +40,7 @@ export type RealityScheduleToolHost = ScheduleToolHost & {
   getRealityStore(): RealityStore;
 };
 
-export const realitySchedulePrompt = `Scheduled scan tools (Phase 7):
+export const realitySchedulePrompt = `Scheduled scan tools:
 - scheduleScan ← recurring or one-time background scan via ScanTargetWorkflow
 - listScheduledScans / cancelScheduledScan
 

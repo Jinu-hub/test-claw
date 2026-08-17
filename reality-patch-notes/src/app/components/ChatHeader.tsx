@@ -45,7 +45,7 @@ export function ChatHeader({
           </h1>
           <Badge variant="secondary">
             <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
-            Phase 8
+            Scan · Proposals
           </Badge>
         </div>
         <div className="flex items-center gap-3">

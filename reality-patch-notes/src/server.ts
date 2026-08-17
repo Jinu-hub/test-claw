@@ -78,7 +78,7 @@ export class ChatAgent extends AIChatAgent<Env> {
     const pack = getSourcePack(target);
     if (!pack) {
       throw new Error(
-        `No canonical source pack for "${target.name}". Phase 4 currently supports Cloudflare Agents.`
+        `No canonical source pack for "${target.name}". Currently only Cloudflare Agents is supported.`
       );
     }
 
@@ -145,7 +145,7 @@ export class ChatAgent extends AIChatAgent<Env> {
     const pack = getSourcePack(target);
     if (!pack) {
       throw new Error(
-        `No canonical source pack for "${target.name}". Phase 6 currently supports Cloudflare Agents.`
+        `No canonical source pack for "${target.name}". Currently only Cloudflare Agents is supported.`
       );
     }
 
@@ -307,6 +307,7 @@ export class ChatAgent extends AIChatAgent<Env> {
     );
   }
 
+  /** Debug/dev RPC: raw Reality markdown from R2. UI uses getReality via chat tools instead. */
   @callable()
   async getStoredContext(targetId = "target_cf_agents") {
     const markdown = await getCurrentContextMarkdown(

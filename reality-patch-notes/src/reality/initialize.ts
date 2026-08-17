@@ -120,7 +120,7 @@ export async function buildInitialRealityContext(input: {
   const pack = getSourcePack(input.target);
   if (!pack) {
     throw new Error(
-      `No canonical source pack for "${input.target.name}". Phase 4 currently supports Cloudflare Agents.`
+      `No canonical source pack for "${input.target.name}". Currently only Cloudflare Agents is supported.`
     );
   }
 

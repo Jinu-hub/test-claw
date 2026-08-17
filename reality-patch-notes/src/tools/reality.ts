@@ -44,7 +44,7 @@ export type RealityToolHost = {
 const stringList = z.array(z.string().min(1)).optional();
 const requiredStringList = z.array(z.string().min(1)).min(1);
 
-export const realityPrompt = `Target management tools (Phase 8):
+export const realityPrompt = `Target management tools:
 - listTargets / addTarget / removeTarget
 - setWatchIntent / updateWatchIntent
 - getReality
@@ -192,7 +192,7 @@ export function createRealityTools(agent: RealityToolHost) {
             targetId: resolved.target.id,
             name: resolved.target.name,
             message:
-              "No canonical source pack for this target yet. Phase 6 currently supports Cloudflare Agents only."
+              "No canonical source pack for this target yet. Currently only Cloudflare Agents is supported."
           };
         }
 
@@ -254,7 +254,7 @@ export function createRealityTools(agent: RealityToolHost) {
             targetId: resolved.target.id,
             name: resolved.target.name,
             message:
-              "No canonical source pack for this target yet. Phase 6 currently supports Cloudflare Agents only."
+              "No canonical source pack for this target yet. Currently only Cloudflare Agents is supported."
           };
         }
 
@@ -299,7 +299,7 @@ export function createRealityTools(agent: RealityToolHost) {
           .enum(["sandbox", "new-section"])
           .optional()
           .describe(
-            "sandbox (default) or new-section for Phase 8 proposal test"
+            "sandbox (default) or new-section for section proposal test"
           )
       }),
       execute: async ({ targetId, name, kind }) => {

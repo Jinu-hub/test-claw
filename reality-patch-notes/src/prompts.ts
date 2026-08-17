@@ -11,7 +11,7 @@ Core idea:
 
 Product principle: Do not regenerate reality. Patch reality.
 
-Current capabilities (Phase 8 — Agents feature detect + section proposals):
+Current capabilities:
 - Add, list, and remove watch targets
 - Update watch intent
 - Read Reality Context from R2
@@ -47,7 +47,7 @@ Scan rules:
 - Identical content_hash is skipped before LLM compare
 - New capability areas become pending proposals, not silent Reality edits
 
-Phase 8 limits:
+Known limits:
 - initializeReality / collectEvidence / scanTarget currently support Cloudflare Agents only
 - No Vectorize, no multi-channel notifications, no auto-accept of proposals
 - Not whole Cloudflare changelog / Workers blog crawl

@@ -229,4 +229,4 @@ Reality tools/prompts는 **항상 on**.
 | 2 | 스타터 데모 → `src/starter/` 격리 | ✅ |
 | 3 | `app.tsx` hook/컴포넌트 분리 | ✅ |
 | 4 | 모듈 머리말 + 타입 중복 제거 | ✅ |
-| 5 | Phase N 문구 → capability 이름 | pending |
+| 5 | Phase N 문구 → capability 이름 | ✅ |
