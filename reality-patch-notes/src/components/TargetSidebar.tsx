@@ -124,6 +124,7 @@ export function TargetSidebar({
   const scanSummary = lastScanSummary(activity, scanInProgress);
   const recentPatches = activity?.recentPatches.slice(0, 4) ?? [];
   const pendingProposals = activity?.pendingProposals ?? [];
+  const pendingIntent = activity?.pendingIntentProposal ?? null;
 
   return (
     <aside className="hidden sm:flex w-72 shrink-0 flex-col border-r border-kumo-line bg-kumo-base">
@@ -274,6 +275,40 @@ export function TargetSidebar({
               >
                 오늘 변화 물어보기
               </button>
+            </section>
+
+            <section>
+              <div className="flex items-baseline justify-between gap-2 px-1 mb-1.5">
+                <p className="text-[11px] font-medium text-kumo-subtle">
+                  관심 설정 제안
+                </p>
+                <span className="rounded-full bg-kumo-control px-1.5 py-0.5 text-[10px] tabular-nums text-kumo-subtle">
+                  {pendingIntent ? 1 : 0}
+                </span>
+              </div>
+              {!pendingIntent ? (
+                <p className="px-1 text-[12px] leading-relaxed text-kumo-subtle">
+                  대기 중인 Watch Intent 제안이 없습니다.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  className="w-full rounded-lg px-2 py-2 text-left transition-colors hover:bg-kumo-control/70"
+                  onClick={() =>
+                    onAsk(
+                      "Watch Intent 제안 내용 설명해줘. Focus, Ignore, Priority를 보여주고 수락할지 물어봐."
+                    )
+                  }
+                >
+                  <div className="text-[12px] font-medium text-kumo-default">
+                    Focus {pendingIntent.focus.length} · Ignore{" "}
+                    {pendingIntent.ignore.length}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-kumo-subtle line-clamp-2">
+                    {pendingIntent.rationale || "AI 제안 검토 대기"}
+                  </div>
+                </button>
+              )}
             </section>
 
             <section>

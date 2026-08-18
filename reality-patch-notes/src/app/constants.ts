@@ -2,14 +2,20 @@
 export const TARGET_MUTATING_TOOLS = new Set([
   "addTarget",
   "removeTarget",
-  "updateWatchIntent"
+  "setWatchIntent",
+  "updateWatchIntent",
+  "acceptWatchIntentProposal"
 ]);
 
 /** Chat tools that change sidebar activity summary (RPC refresh). */
 export const ACTIVITY_REFRESH_TOOLS = new Set([
   "addTarget",
   "removeTarget",
+  "setWatchIntent",
   "updateWatchIntent",
+  "suggestWatchIntent",
+  "acceptWatchIntentProposal",
+  "rejectWatchIntentProposal",
   "scanTarget",
   "acceptSectionProposal",
   "rejectSectionProposal",

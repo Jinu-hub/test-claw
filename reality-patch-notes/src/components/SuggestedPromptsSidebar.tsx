@@ -25,6 +25,25 @@ export function buildSuggestedPrompts(
   const name = target.name;
   const items: SuggestedPrompt[] = [];
 
+  if (activity?.pendingIntentProposal) {
+    items.push({
+      id: "review-intent-proposal",
+      label: "관심 설정 제안 검토",
+      prompt:
+        "Watch Intent 제안을 Focus, Ignore, Priority로 정리해서 보여주고, 수락할지 거절할지 물어봐."
+    });
+    items.push({
+      id: "accept-intent-proposal",
+      label: "제안 그대로 적용",
+      prompt: "Watch Intent 제안을 그대로 수락해줘."
+    });
+    items.push({
+      id: "set-intent-manual",
+      label: "직접 관심 설정",
+      prompt: `${name} 관심 설정을 내가 말한 대로 직접 저장해줘.`
+    });
+  }
+
   if ((activity?.pendingProposals.length ?? 0) > 0) {
     const first = activity!.pendingProposals[0];
     items.push({
@@ -77,7 +96,7 @@ export function buildSuggestedPrompts(
     prompt: `${name} 근거 링크 보여줘`
   });
 
-  if (!activity?.lastScan) {
+  if (!activity?.lastScan && !activity?.pendingIntentProposal) {
     items.unshift({
       id: "initialize",
       label: "처음 상태 만들기",

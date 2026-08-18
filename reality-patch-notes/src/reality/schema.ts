@@ -86,6 +86,25 @@ export function ensureRealitySchema(sql: SqlExecutor): void {
   `;
 
   sql`
+    CREATE TABLE IF NOT EXISTS watch_intent_proposals (
+      id TEXT PRIMARY KEY,
+      target_id TEXT NOT NULL,
+      focus_json TEXT NOT NULL DEFAULT '[]',
+      ignore_json TEXT NOT NULL DEFAULT '[]',
+      priority_json TEXT NOT NULL DEFAULT '[]',
+      rationale TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL,
+      resolved_at TEXT
+    )
+  `;
+
+  sql`
+    CREATE INDEX IF NOT EXISTS idx_watch_intent_proposals_target_status
+    ON watch_intent_proposals(target_id, status)
+  `;
+
+  sql`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_evidences_target_hash
     ON evidences(target_id, content_hash)
   `;

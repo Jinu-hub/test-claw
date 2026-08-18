@@ -305,6 +305,7 @@ export async function removeTarget(
     WHERE patch_id IN (SELECT id FROM patches WHERE target_id = ${target.id})
   `;
   store.sql`DELETE FROM section_proposals WHERE target_id = ${target.id}`;
+  store.sql`DELETE FROM watch_intent_proposals WHERE target_id = ${target.id}`;
   store.sql`DELETE FROM patches WHERE target_id = ${target.id}`;
   store.sql`DELETE FROM evidences WHERE target_id = ${target.id}`;
   store.sql`DELETE FROM scan_runs WHERE target_id = ${target.id}`;
@@ -425,7 +426,7 @@ export async function setWatchIntent(
   return { ...result, mode: "replace" };
 }
 
-function reconcileIntent(intent: WatchIntent): WatchIntent {
+export function reconcileIntent(intent: WatchIntent): WatchIntent {
   const ignore = normalizeIntentList(intent.ignore);
   const ignoreKeys = new Set(ignore.map((item) => item.toLowerCase()));
   const focus = normalizeIntentList(intent.focus).filter(

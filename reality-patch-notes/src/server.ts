@@ -28,6 +28,7 @@ import {
   scanTarget,
   seedFixtureIfNeeded,
   syncAcceptedProposalsIntoFocus,
+  runSuggestWatchIntent,
   type RealityStore,
   type ScanTargetResult
 } from "./reality";
@@ -38,11 +39,13 @@ import {
   REALITY_INITIALIZED_TYPE,
   REALITY_SCANNED_TYPE,
   SCHEDULED_TASK_TYPE,
+  WATCH_INTENT_SUGGESTED_TYPE,
   WORKFLOW_PROGRESS_TYPE
 } from "./tools/shared";
 
 export { InitializeRealityWorkflow } from "./workflows/initialize-reality";
 export { ScanTargetWorkflow } from "./workflows/scan-target";
+export { SuggestWatchIntentWorkflow } from "./workflows/suggest-watch-intent";
 
 export class ChatAgent extends AIChatAgent<Env> {
   maxPersistedMessages = MAX_PERSISTED_MESSAGES;
@@ -200,6 +203,45 @@ export class ChatAgent extends AIChatAgent<Env> {
     return { workflowId, targetId };
   }
 
+  async prepareSuggestWatchIntent(targetId: string) {
+    const store = this.getRealityStore();
+    const target = getTarget(store, targetId);
+    if (!target) {
+      throw new Error(`Target not found: ${targetId}`);
+    }
+    return {
+      targetId: target.id,
+      name: target.name
+    };
+  }
+
+  async runSuggestWatchIntent(targetId: string) {
+    return runSuggestWatchIntent(this.getRealityStore(), this.env.AI, targetId);
+  }
+
+  async startSuggestWatchIntent(targetId: string) {
+    await this.prepareSuggestWatchIntent(targetId);
+    const workflowId = await this.runWorkflow("SUGGEST_WATCH_INTENT_WORKFLOW", {
+      targetId
+    });
+    this.broadcast(
+      JSON.stringify({
+        type: WORKFLOW_PROGRESS_TYPE,
+        workflowName: "SUGGEST_WATCH_INTENT_WORKFLOW",
+        instanceId: workflowId,
+        progress: {
+          step: "queued",
+          status: "running",
+          percent: 0.02,
+          targetId,
+          message: "Watch Intent suggestion queued…"
+        },
+        timestamp: new Date().toISOString()
+      })
+    );
+    return { workflowId, targetId };
+  }
+
   async onWorkflowProgress(
     workflowName: string,
     instanceId: string,
@@ -242,6 +284,39 @@ export class ChatAgent extends AIChatAgent<Env> {
           timestamp: new Date().toISOString()
         })
       );
+      return;
+    }
+
+    if (workflowName === "SUGGEST_WATCH_INTENT_WORKFLOW") {
+      const payload =
+        result && typeof result === "object"
+          ? (result as {
+              targetId?: string;
+              name?: string;
+              proposalId?: string;
+              focus?: string[];
+              ignore?: string[];
+              priority?: string[];
+              rationale?: string;
+            })
+          : {};
+
+      this.broadcast(
+        JSON.stringify({
+          type: WATCH_INTENT_SUGGESTED_TYPE,
+          targetId: payload.targetId ?? "",
+          name: payload.name ?? "",
+          proposalId: payload.proposalId ?? "",
+          focus: payload.focus ?? [],
+          ignore: payload.ignore ?? [],
+          priority: payload.priority ?? [],
+          rationale: payload.rationale ?? "",
+          timestamp: new Date().toISOString()
+        })
+      );
+      if (payload.targetId) {
+        this.notifyActivityChanged(payload.targetId, "watch-intent-suggested");
+      }
       return;
     }
 

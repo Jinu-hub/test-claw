@@ -75,7 +75,8 @@ export function useTargetData({
           lastScan: result.lastScan,
           patchesToday: result.patchesToday,
           recentPatches: result.recentPatches,
-          pendingProposals: result.pendingProposals
+          pendingProposals: result.pendingProposals,
+          pendingIntentProposal: result.pendingIntentProposal
         });
       } else if (!result.found) {
         setActivity(null);

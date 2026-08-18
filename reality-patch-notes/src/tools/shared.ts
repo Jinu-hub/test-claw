@@ -2,6 +2,7 @@ export const SCHEDULED_TASK_TYPE = "scheduled-task";
 export const REALITY_INITIALIZED_TYPE = "reality-initialized";
 export const REALITY_SCANNED_TYPE = "reality-scanned";
 export const REALITY_ACTIVITY_CHANGED_TYPE = "reality-activity-changed";
+export const WATCH_INTENT_SUGGESTED_TYPE = "watch-intent-suggested";
 export const WORKFLOW_PROGRESS_TYPE = "workflow-progress";
 
 export const MAX_TOOL_STEPS = 20;
@@ -43,6 +44,18 @@ export type RealityActivityChangedEvent = {
   timestamp: string;
 };
 
+export type WatchIntentSuggestedEvent = {
+  type: typeof WATCH_INTENT_SUGGESTED_TYPE;
+  targetId: string;
+  name: string;
+  proposalId: string;
+  focus: string[];
+  ignore: string[];
+  priority: string[];
+  rationale: string;
+  timestamp: string;
+};
+
 export type WorkflowProgressPayload = {
   step?: string;
   status?: string;
@@ -68,6 +81,8 @@ export function workflowKindLabel(workflowName: string): string {
   if (workflowName === "SCAN_TARGET_WORKFLOW") return "Scan";
   if (workflowName === "INITIALIZE_REALITY_WORKFLOW")
     return "Initialize Reality";
+  if (workflowName === "SUGGEST_WATCH_INTENT_WORKFLOW")
+    return "Suggest Watch Intent";
   return workflowName;
 }
 
@@ -81,6 +96,7 @@ export function workflowStepLabel(step: string | undefined): string {
       return "Prepared";
     case "scan-and-patch":
     case "build-and-save":
+    case "suggest-intent":
       return "Working";
     case "complete":
       return "Finishing";
@@ -223,6 +239,56 @@ export function parseRealityActivityChangedEvent(
         : "",
     reason:
       "reason" in data && typeof data.reason === "string" ? data.reason : "",
+    timestamp:
+      "timestamp" in data && typeof data.timestamp === "string"
+        ? data.timestamp
+        : new Date().toISOString()
+  };
+}
+
+export function parseWatchIntentSuggestedEvent(
+  data: unknown
+): WatchIntentSuggestedEvent | null {
+  if (
+    typeof data !== "object" ||
+    data === null ||
+    !("type" in data) ||
+    data.type !== WATCH_INTENT_SUGGESTED_TYPE
+  ) {
+    return null;
+  }
+
+  const focus =
+    "focus" in data && Array.isArray(data.focus)
+      ? data.focus.filter((item): item is string => typeof item === "string")
+      : [];
+  const ignore =
+    "ignore" in data && Array.isArray(data.ignore)
+      ? data.ignore.filter((item): item is string => typeof item === "string")
+      : [];
+  const priority =
+    "priority" in data && Array.isArray(data.priority)
+      ? data.priority.filter((item): item is string => typeof item === "string")
+      : [];
+
+  return {
+    type: WATCH_INTENT_SUGGESTED_TYPE,
+    targetId:
+      "targetId" in data && typeof data.targetId === "string"
+        ? data.targetId
+        : "",
+    name: "name" in data && typeof data.name === "string" ? data.name : "",
+    proposalId:
+      "proposalId" in data && typeof data.proposalId === "string"
+        ? data.proposalId
+        : "",
+    focus,
+    ignore,
+    priority,
+    rationale:
+      "rationale" in data && typeof data.rationale === "string"
+        ? data.rationale
+        : "",
     timestamp:
       "timestamp" in data && typeof data.timestamp === "string"
         ? data.timestamp

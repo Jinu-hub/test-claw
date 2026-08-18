@@ -5,6 +5,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import {
+  acceptIntentProposal,
   acceptSectionProposal,
   addTarget,
   collectCanonicalEvidence,
@@ -14,11 +15,14 @@ import {
   injectNewSectionTestEvidence,
   injectSandboxSessionTestEvidence,
   isRealityInitialized,
+  isWatchIntentEmpty,
   listEvidences,
+  listIntentProposals,
   listSectionProposals,
   listTargets,
   parseRealityContext,
   queryPatches,
+  rejectIntentProposal,
   rejectSectionProposal,
   removeTarget,
   resolveTargetOrSingle,
@@ -38,6 +42,9 @@ export type RealityToolHost = {
   startScanTarget(
     targetId: string
   ): Promise<{ workflowId: string; targetId: string }>;
+  startSuggestWatchIntent(
+    targetId: string
+  ): Promise<{ workflowId: string; targetId: string }>;
   notifyActivityChanged(targetId: string, reason: string): void;
 };
 
@@ -47,6 +54,7 @@ const requiredStringList = z.array(z.string().min(1)).min(1);
 export const realityPrompt = `Target management tools:
 - listTargets / addTarget / removeTarget
 - setWatchIntent / updateWatchIntent
+- suggestWatchIntent / listWatchIntentProposals / acceptWatchIntentProposal / rejectWatchIntentProposal
 - getReality
 - initializeReality ← build initial Reality Context from canonical docs (Workflow)
 - getEvidence / collectEvidence
@@ -56,10 +64,18 @@ export const realityPrompt = `Target management tools:
 - scheduleScan / listScheduledScans / cancelScheduledScan
 - injectTestEvidence ← verification (sandbox change OR new-section Voice proposal)
 
+Onboarding (new targets):
+- addTarget registers only; when intent is empty, a background suggestWatchIntent workflow runs automatically
+- Watch Intent suggestions are proposals (pending) — never claim intent is saved until acceptWatchIntentProposal or setWatchIntent succeeds
+- After intent is accepted or set manually, ask whether to initializeReality now; skip initialize for targets without a source pack (e.g. Bitcoin)
+
 Mandatory tool use:
 - "추가해줘" → addTarget before confirming
-- "관심 없고" / "만 봐줘" → setWatchIntent before confirming
-- "초기 Reality" / "baseline 만들어" → initializeReality
+- "관심 없고" / "만 봐줘" → setWatchIntent before confirming (or acceptWatchIntentProposal if a pending suggestion exists)
+- "관심 제안" / "Watch Intent 제안" → listWatchIntentProposals or wait for suggest workflow
+- "제안 수락" / "그대로 적용" (intent) → acceptWatchIntentProposal
+- "제안 거절" (intent) → rejectWatchIntentProposal
+- "초기 Reality" / "baseline 만들어" → initializeReality (only when source pack exists)
 - "근거" / "evidence" / "근거 링크" → getEvidence
 - "Watch Intent" / "관심사" / "관심 설정" → getReality part=watch-intent, then summarize Focus / Ignore / Priority only
 - "알고 있는 내용" / "Reality Context" → getReality part=summary, then summarize clearly
@@ -75,6 +91,8 @@ Mandatory tool use:
 - Never claim a scan, proposal, or patch unless the matching tool returned it
 - Never claim pending proposals are empty unless listSectionProposals returned count 0
 - Never claim accept/reject succeeded unless the tool returned accepted/rejected: true
+- Never claim Watch Intent is set unless acceptWatchIntentProposal or setWatchIntent returned success
+- Never claim pending intent proposals are empty unless listWatchIntentProposals returned count 0
 - Scans do NOT auto-add sections; proposals need acceptSectionProposal
 - Patch 0 after scanning the same docs is success
 
@@ -100,7 +118,7 @@ export function createRealityTools(agent: RealityToolHost) {
 
     addTarget: tool({
       description:
-        "Register a new watch target. Creates a SQLite row and an uninitialized Reality Context template in R2. Does not research. For Cloudflare Agents, follow with initializeReality.",
+        "Register a new watch target. Creates a SQLite row and an uninitialized Reality Context template in R2. Does not research. When focus/ignore/priority are omitted, starts a background Watch Intent suggestion workflow.",
       inputSchema: z.object({
         name: z.string().min(1).describe("Display name of the target to watch"),
         description: z
@@ -115,7 +133,46 @@ export function createRealityTools(agent: RealityToolHost) {
         ignore: stringList.describe("Optional topics to ignore"),
         priority: stringList.describe("Optional priority topics")
       }),
-      execute: async (input) => addTarget(agent.getRealityStore(), input)
+      execute: async (input) => {
+        const store = agent.getRealityStore();
+        const result = await addTarget(store, input);
+        if (!result.created) {
+          return result;
+        }
+
+        const intentProvided = !isWatchIntentEmpty({
+          focus: input.focus ?? [],
+          ignore: input.ignore ?? [],
+          priority: input.priority ?? []
+        });
+
+        if (intentProvided) {
+          return {
+            ...result,
+            intentSuggestionStarted: false as const,
+            message:
+              "Target registered with initial Watch Intent. Ask whether to initializeReality if a source pack exists."
+          };
+        }
+
+        try {
+          const started = await agent.startSuggestWatchIntent(result.target.id);
+          agent.notifyActivityChanged(result.target.id, "addTarget");
+          return {
+            ...result,
+            intentSuggestionStarted: true as const,
+            ...started,
+            message:
+              "Target registered. Watch Intent suggestion workflow started — present the proposal when ready; user must accept before intent is saved."
+          };
+        } catch (error) {
+          return {
+            ...result,
+            intentSuggestionStarted: false as const,
+            message: error instanceof Error ? error.message : String(error)
+          };
+        }
+      }
     }),
 
     removeTarget: tool({
@@ -147,7 +204,13 @@ export function createRealityTools(agent: RealityToolHost) {
           "Optional priority subset. Defaults to focus when omitted."
         )
       }),
-      execute: async (input) => setWatchIntent(agent.getRealityStore(), input)
+      execute: async (input) => {
+        const result = await setWatchIntent(agent.getRealityStore(), input);
+        if (result.updated) {
+          agent.notifyActivityChanged(result.target.id, "setWatchIntent");
+        }
+        return result;
+      }
     }),
 
     updateWatchIntent: tool({
@@ -424,6 +487,157 @@ export function createRealityTools(agent: RealityToolHost) {
           );
         }
         return result;
+      }
+    }),
+
+    suggestWatchIntent: tool({
+      description:
+        "Start a background workflow that AI-suggests Focus/Ignore/Priority as a pending Watch Intent proposal. Does not save intent until acceptWatchIntentProposal.",
+      inputSchema: z.object({
+        targetId: z.string().optional(),
+        name: z.string().optional()
+      }),
+      execute: async ({ targetId, name }) => {
+        const store = agent.getRealityStore();
+        const resolved = resolveTargetOrSingle(store, { targetId, name });
+        if (!resolved.target) {
+          return { started: false as const, message: resolved.message };
+        }
+
+        try {
+          const started = await agent.startSuggestWatchIntent(
+            resolved.target.id
+          );
+          return {
+            started: true as const,
+            ...started,
+            name: resolved.target.name,
+            message:
+              "Watch Intent suggestion workflow started. List proposals when complete."
+          };
+        } catch (error) {
+          return {
+            started: false as const,
+            targetId: resolved.target.id,
+            name: resolved.target.name,
+            message: error instanceof Error ? error.message : String(error)
+          };
+        }
+      }
+    }),
+
+    listWatchIntentProposals: tool({
+      description:
+        "List Watch Intent proposals (pending/accepted/rejected). REQUIRED when onboarding or user asks about suggested focus/ignore/priority.",
+      inputSchema: z.object({
+        targetId: z.string().optional(),
+        name: z.string().optional(),
+        status: z.enum(["pending", "accepted", "rejected"]).optional()
+      }),
+      execute: async ({ targetId, name, status }) => {
+        const store = agent.getRealityStore();
+        const resolved = resolveTargetOrSingle(store, { targetId, name });
+        if (!resolved.target) {
+          return { found: false as const, message: resolved.message };
+        }
+
+        const proposals = listIntentProposals(
+          store,
+          resolved.target.id,
+          status
+        );
+        return {
+          found: true as const,
+          targetId: resolved.target.id,
+          name: resolved.target.name,
+          count: proposals.length,
+          status: status ?? "all",
+          proposals,
+          message:
+            proposals.length === 0
+              ? "No Watch Intent proposals. Run suggestWatchIntent or add a target without intent."
+              : undefined
+        };
+      }
+    }),
+
+    acceptWatchIntentProposal: tool({
+      description:
+        "Accept a pending Watch Intent proposal and save Focus/Ignore/Priority. REQUIRED before claiming intent was applied.",
+      inputSchema: z.object({
+        proposalId: z.string().min(1),
+        targetId: z.string().optional(),
+        name: z.string().optional()
+      }),
+      execute: async ({ proposalId, targetId, name }) => {
+        const store = agent.getRealityStore();
+        const resolved = resolveTargetOrSingle(store, { targetId, name });
+        if (!resolved.target) {
+          return { accepted: false as const, message: resolved.message };
+        }
+
+        const result = await acceptIntentProposal(
+          store,
+          resolved.target.id,
+          proposalId
+        );
+        if (!result.accepted) {
+          return result;
+        }
+
+        agent.notifyActivityChanged(
+          resolved.target.id,
+          "acceptWatchIntentProposal"
+        );
+
+        const pack = getSourcePack(resolved.target);
+        const existing = await getCurrentContext(store, resolved.target.id);
+        const initialized = isRealityInitialized(existing);
+
+        return {
+          ...result,
+          canInitialize: Boolean(pack),
+          alreadyInitialized: initialized,
+          onboardingNextStep: pack
+            ? initialized
+              ? "Intent saved. Reality already initialized — offer scanTarget or manual watch tweaks."
+              : "Intent saved. Ask whether to run initializeReality now."
+            : "Intent saved. No canonical source pack for this target — skip initializeReality; user can set intent manually anytime."
+        };
+      }
+    }),
+
+    rejectWatchIntentProposal: tool({
+      description:
+        "Reject a pending Watch Intent suggestion without changing stored intent.",
+      inputSchema: z.object({
+        proposalId: z.string().min(1),
+        targetId: z.string().optional(),
+        name: z.string().optional()
+      }),
+      execute: async ({ proposalId, targetId, name }) => {
+        const store = agent.getRealityStore();
+        const resolved = resolveTargetOrSingle(store, { targetId, name });
+        if (!resolved.target) {
+          return { rejected: false as const, message: resolved.message };
+        }
+
+        const result = rejectIntentProposal(
+          store,
+          resolved.target.id,
+          proposalId
+        );
+        if (result.rejected) {
+          agent.notifyActivityChanged(
+            resolved.target.id,
+            "rejectWatchIntentProposal"
+          );
+        }
+        return {
+          ...result,
+          onboardingNextStep:
+            "Offer setWatchIntent so the user can define focus/ignore/priority manually."
+        };
       }
     }),
 

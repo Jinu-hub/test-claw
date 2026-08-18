@@ -3,6 +3,7 @@
  * Not used by chat tools; UI fetches via RPC (see TargetSidebar, useTargetData).
  */
 import { listPendingProposals } from "./section-proposals";
+import { findPendingIntentProposal } from "./intent-proposals";
 import type { RealityStore } from "./store";
 import type { ScanRunRow } from "./types";
 
@@ -30,12 +31,22 @@ export type ActivityLastScan = {
   proposalsCreated: number | null;
 };
 
+export type ActivityIntentProposalItem = {
+  id: string;
+  focus: string[];
+  ignore: string[];
+  priority: string[];
+  rationale: string;
+  createdAt: string;
+};
+
 export type TargetActivitySummary = {
   targetId: string;
   lastScan: ActivityLastScan | null;
   patchesToday: number;
   recentPatches: ActivityPatchItem[];
   pendingProposals: ActivityProposalItem[];
+  pendingIntentProposal: ActivityIntentProposalItem | null;
 };
 
 function startOfTodayIso(): string {
@@ -114,6 +125,7 @@ export function getTargetActivitySummary(
   `;
 
   const pending = listPendingProposals(store, targetId).slice(0, 5);
+  const pendingIntent = findPendingIntentProposal(store, targetId);
 
   return {
     targetId,
@@ -140,6 +152,16 @@ export function getTargetActivitySummary(
       title: proposal.title,
       sectionKey: proposal.sectionKey,
       createdAt: proposal.createdAt
-    }))
+    })),
+    pendingIntentProposal: pendingIntent
+      ? {
+          id: pendingIntent.id,
+          focus: JSON.parse(pendingIntent.focus_json) as string[],
+          ignore: JSON.parse(pendingIntent.ignore_json) as string[],
+          priority: JSON.parse(pendingIntent.priority_json) as string[],
+          rationale: pendingIntent.rationale,
+          createdAt: pendingIntent.created_at
+        }
+      : null
   };
 }

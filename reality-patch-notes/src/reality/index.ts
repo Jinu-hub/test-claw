@@ -5,6 +5,7 @@ export {
 } from "./fixture";
 export {
   getTargetActivitySummary,
+  type ActivityIntentProposalItem,
   type ActivityLastScan,
   type ActivityPatchItem,
   type ActivityProposalItem,
@@ -57,6 +58,18 @@ export {
   type ScanTargetResult
 } from "./scan";
 export {
+  acceptIntentProposal,
+  findPendingIntentProposal,
+  getIntentProposal,
+  listIntentProposals,
+  listPendingIntentProposals,
+  rejectIntentProposal,
+  summarizeIntentProposal,
+  upsertPendingIntentProposal,
+  type IntentProposalStatus,
+  type IntentProposalSummary
+} from "./intent-proposals";
+export {
   acceptSectionProposal,
   findPendingProposal,
   getSectionProposal,
@@ -69,6 +82,12 @@ export {
   type SectionProposalStatus,
   type SectionProposalSummary
 } from "./section-proposals";
+export {
+  isWatchIntentEmpty,
+  runSuggestWatchIntent,
+  suggestWatchIntentForTarget,
+  type SuggestWatchIntentResult
+} from "./suggest-intent";
 export { ensureRealitySchema, type SqlExecutor } from "./schema";
 export {
   getSourcePack,

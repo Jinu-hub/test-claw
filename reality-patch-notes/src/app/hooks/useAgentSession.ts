@@ -15,6 +15,7 @@ import {
   parseRealityInitializedEvent,
   parseRealityScannedEvent,
   parseScheduledTaskEvent,
+  parseWatchIntentSuggestedEvent,
   parseWorkflowProgressEvent,
   workflowKindLabel,
   workflowStepLabel
@@ -141,6 +142,21 @@ export function useAgentSession({
             toasts.add({
               title: `Scan complete · ${titleParts.join(" · ")}`,
               description: `${scanned.name || scanned.targetId}${sectionNote}${proposalNote}`,
+              timeout: 0
+            });
+          }
+          const intentSuggested = parseWatchIntentSuggestedEvent(data);
+          if (intentSuggested) {
+            clearJobsForWorkflow("SUGGEST_WATCH_INTENT_WORKFLOW");
+            refreshTargetsRef.current();
+            refreshActivityRef.current();
+            const focusPreview =
+              intentSuggested.focus.length > 0
+                ? intentSuggested.focus.slice(0, 3).join(", ")
+                : "—";
+            toasts.add({
+              title: "Watch Intent 제안 준비됨",
+              description: `${intentSuggested.name || intentSuggested.targetId} · Focus: ${focusPreview}`,
               timeout: 0
             });
           }

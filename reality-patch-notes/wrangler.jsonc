@@ -30,6 +30,11 @@
 			"name": "scan-target-workflow",
 			"binding": "SCAN_TARGET_WORKFLOW",
 			"class_name": "ScanTargetWorkflow"
+		},
+		{
+			"name": "suggest-watch-intent-workflow",
+			"binding": "SUGGEST_WATCH_INTENT_WORKFLOW",
+			"class_name": "SuggestWatchIntentWorkflow"
 		}
 	],
 	"assets": {
