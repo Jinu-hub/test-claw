@@ -5,6 +5,7 @@
 import { ArrowsClockwiseIcon, CrosshairIcon } from "@phosphor-icons/react";
 import { Button, Text } from "@cloudflare/kumo";
 import type { SidebarTarget, TargetActivitySummary } from "../reality";
+import { WatchIntentProposalEditor } from "./WatchIntentProposalEditor";
 
 export type { SidebarTarget, TargetActivitySummary };
 
@@ -106,7 +107,10 @@ export function TargetSidebar({
   scanInProgress,
   onRefresh,
   onSelect,
-  onAsk
+  onAsk,
+  intentBusy,
+  onApplyIntentDraft,
+  onRejectIntentProposal
 }: {
   targets: SidebarTarget[];
   selectedId: string | null;
@@ -118,6 +122,14 @@ export function TargetSidebar({
   onRefresh: () => void;
   onSelect: (target: SidebarTarget) => void;
   onAsk: (prompt: string) => void;
+  intentBusy: boolean;
+  onApplyIntentDraft: (input: {
+    proposalId: string;
+    focus: string[];
+    ignore: string[];
+    priority: string[];
+  }) => void | Promise<void>;
+  onRejectIntentProposal: (proposalId: string) => void | Promise<void>;
 }) {
   const visible = targets.filter((target) => target.status !== "archived");
   const selected = visible.find((target) => target.id === selectedId) ?? null;
@@ -206,6 +218,23 @@ export function TargetSidebar({
 
         {selected && (
           <div className="mt-3 border-t border-kumo-line pt-3 px-1 space-y-3">
+            {pendingIntent ? (
+              <WatchIntentProposalEditor
+                proposal={pendingIntent}
+                disabled={!connected}
+                busy={intentBusy}
+                onApply={(draft) =>
+                  onApplyIntentDraft({
+                    proposalId: pendingIntent.id,
+                    focus: draft.focus,
+                    ignore: draft.ignore,
+                    priority: draft.priority
+                  })
+                }
+                onReject={() => onRejectIntentProposal(pendingIntent.id)}
+              />
+            ) : null}
+
             <section className="rounded-xl bg-kumo-control/35 px-3 py-2.5">
               <p className="text-[11px] font-medium text-kumo-subtle">
                 마지막 확인
@@ -277,39 +306,18 @@ export function TargetSidebar({
               </button>
             </section>
 
-            <section>
-              <div className="flex items-baseline justify-between gap-2 px-1 mb-1.5">
-                <p className="text-[11px] font-medium text-kumo-subtle">
-                  관심 설정 제안
-                </p>
-                <span className="rounded-full bg-kumo-control px-1.5 py-0.5 text-[10px] tabular-nums text-kumo-subtle">
-                  {pendingIntent ? 1 : 0}
-                </span>
-              </div>
-              {!pendingIntent ? (
+            {!pendingIntent ? (
+              <section>
+                <div className="flex items-baseline justify-between gap-2 px-1 mb-1.5">
+                  <p className="text-[11px] font-medium text-kumo-subtle">
+                    관심 설정 제안
+                  </p>
+                </div>
                 <p className="px-1 text-[12px] leading-relaxed text-kumo-subtle">
                   대기 중인 Watch Intent 제안이 없습니다.
                 </p>
-              ) : (
-                <button
-                  type="button"
-                  className="w-full rounded-lg px-2 py-2 text-left transition-colors hover:bg-kumo-control/70"
-                  onClick={() =>
-                    onAsk(
-                      "Watch Intent 제안 내용 설명해줘. Focus, Ignore, Priority를 보여주고 수락할지 물어봐."
-                    )
-                  }
-                >
-                  <div className="text-[12px] font-medium text-kumo-default">
-                    Focus {pendingIntent.focus.length} · Ignore{" "}
-                    {pendingIntent.ignore.length}
-                  </div>
-                  <div className="mt-0.5 text-[10px] text-kumo-subtle line-clamp-2">
-                    {pendingIntent.rationale || "AI 제안 검토 대기"}
-                  </div>
-                </button>
-              )}
-            </section>
+              </section>
+            ) : null}
 
             <section>
               <div className="flex items-baseline justify-between gap-2 px-1 mb-1.5">

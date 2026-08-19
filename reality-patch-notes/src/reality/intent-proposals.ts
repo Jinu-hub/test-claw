@@ -268,3 +268,55 @@ export function rejectIntentProposal(
     )
   };
 }
+
+/** Apply user-edited Focus/Ignore/Priority and mark the pending proposal accepted. */
+export async function applyIntentDraft(
+  store: RealityStore,
+  input: {
+    targetId: string;
+    proposalId: string;
+    focus: string[];
+    ignore: string[];
+    priority: string[];
+  }
+): Promise<
+  | { applied: true; intent: WatchIntent; proposal: IntentProposalSummary }
+  | { applied: false; message: string }
+> {
+  const row = getIntentProposal(store, input.proposalId);
+  if (!row || row.target_id !== input.targetId) {
+    return { applied: false, message: "Intent proposal not found for target." };
+  }
+  if (row.status !== "pending") {
+    return {
+      applied: false,
+      message: `Intent proposal is already ${row.status}.`
+    };
+  }
+
+  const applied = await setWatchIntent(store, {
+    targetId: input.targetId,
+    focus: input.focus,
+    ignore: input.ignore,
+    priority: input.priority.length > 0 ? input.priority : input.focus
+  });
+  if (!applied.updated) {
+    return { applied: false, message: applied.message };
+  }
+
+  const now = new Date().toISOString();
+  store.sql`
+    UPDATE watch_intent_proposals
+    SET status = ${"accepted"}, resolved_at = ${now}
+    WHERE id = ${row.id}
+  `;
+
+  const updated = getIntentProposal(store, row.id);
+  return {
+    applied: true,
+    intent: applied.intent,
+    proposal: summarizeIntentProposal(
+      updated ?? { ...row, status: "accepted", resolved_at: now }
+    )
+  };
+}

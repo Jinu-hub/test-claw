@@ -22,6 +22,7 @@ export function Chat() {
   const [showDebug, setShowDebug] = useState(false);
   const refreshTargetsRef = useRef<() => void>(() => {});
   const refreshActivityRef = useRef<() => void>(() => {});
+  const onWatchIntentSuggestedRef = useRef<(targetId: string) => void>(() => {});
   const { mcpState, onMcpUpdate } = useMcpState(featureFlags.mcp);
   const {
     attachments,
@@ -38,6 +39,7 @@ export function Chat() {
   const session = useAgentSession({
     refreshTargetsRef,
     refreshActivityRef,
+    onWatchIntentSuggestedRef,
     onMcpUpdate
   });
 
@@ -47,7 +49,8 @@ export function Chat() {
     messages: session.messages,
     backgroundJobs: session.backgroundJobs,
     refreshTargetsRef,
-    refreshActivityRef
+    refreshActivityRef,
+    onWatchIntentSuggestedRef
   });
 
   const sendPrompt = useCallback(
@@ -105,6 +108,9 @@ export function Chat() {
           onRefresh={targetData.refreshSidebar}
           onSelect={targetData.toggleSelectedTarget}
           onAsk={sendPrompt}
+          intentBusy={targetData.intentBusy}
+          onApplyIntentDraft={targetData.applyIntentDraft}
+          onRejectIntentProposal={targetData.rejectIntentProposal}
         />
 
         <div className="flex flex-col flex-1 min-w-0">

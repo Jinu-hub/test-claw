@@ -59,6 +59,7 @@ export {
 } from "./scan";
 export {
   acceptIntentProposal,
+  applyIntentDraft,
   findPendingIntentProposal,
   getIntentProposal,
   listIntentProposals,

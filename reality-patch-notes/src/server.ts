@@ -28,6 +28,8 @@ import {
   scanTarget,
   seedFixtureIfNeeded,
   syncAcceptedProposalsIntoFocus,
+  applyIntentDraft,
+  rejectIntentProposal,
   runSuggestWatchIntent,
   type RealityStore,
   type ScanTargetResult
@@ -369,6 +371,60 @@ export class ChatAgent extends AIChatAgent<Env> {
       found: true as const,
       ...getTargetActivitySummary(store, targetId)
     };
+  }
+
+  @callable()
+  async applyWatchIntentDraft(input: {
+    targetId: string;
+    proposalId: string;
+    focus: string[];
+    ignore: string[];
+    priority: string[];
+  }) {
+    const store = this.getRealityStore();
+    const target = getTarget(store, input.targetId);
+    if (!target) {
+      return { applied: false as const, message: "Target not found." };
+    }
+
+    const result = await applyIntentDraft(store, input);
+    if (!result.applied) {
+      return result;
+    }
+
+    this.notifyActivityChanged(input.targetId, "applyWatchIntentDraft");
+    const pack = getSourcePack(target);
+    const existing = await getCurrentContext(store, input.targetId);
+    const initialized = isRealityInitialized(existing);
+
+    return {
+      ...result,
+      canInitialize: Boolean(pack),
+      alreadyInitialized: initialized,
+      targetName: target.name
+    };
+  }
+
+  @callable()
+  async rejectWatchIntentProposal(input: {
+    targetId: string;
+    proposalId: string;
+  }) {
+    const store = this.getRealityStore();
+    const target = getTarget(store, input.targetId);
+    if (!target) {
+      return { rejected: false as const, message: "Target not found." };
+    }
+
+    const result = rejectIntentProposal(
+      store,
+      input.targetId,
+      input.proposalId
+    );
+    if (result.rejected) {
+      this.notifyActivityChanged(input.targetId, "rejectWatchIntentProposal");
+    }
+    return result;
   }
 
   notifyActivityChanged(targetId: string, reason: string) {

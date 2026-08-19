@@ -25,10 +25,12 @@ import type { BackgroundJob } from "../types";
 export function useAgentSession({
   refreshTargetsRef,
   refreshActivityRef,
+  onWatchIntentSuggestedRef,
   onMcpUpdate
 }: {
   refreshTargetsRef: MutableRefObject<() => void>;
   refreshActivityRef: MutableRefObject<() => void>;
+  onWatchIntentSuggestedRef?: MutableRefObject<(targetId: string) => void>;
   onMcpUpdate?: (state: MCPServersState) => void;
 }) {
   const [connected, setConnected] = useState(false);
@@ -148,6 +150,9 @@ export function useAgentSession({
           const intentSuggested = parseWatchIntentSuggestedEvent(data);
           if (intentSuggested) {
             clearJobsForWorkflow("SUGGEST_WATCH_INTENT_WORKFLOW");
+            if (intentSuggested.targetId) {
+              onWatchIntentSuggestedRef?.current(intentSuggested.targetId);
+            }
             refreshTargetsRef.current();
             refreshActivityRef.current();
             const focusPreview =
@@ -168,7 +173,7 @@ export function useAgentSession({
           // Not JSON or not our event
         }
       },
-      [toasts, clearJobsForWorkflow, refreshTargetsRef, refreshActivityRef]
+      [toasts, clearJobsForWorkflow, refreshTargetsRef, refreshActivityRef, onWatchIntentSuggestedRef]
     )
   });
 

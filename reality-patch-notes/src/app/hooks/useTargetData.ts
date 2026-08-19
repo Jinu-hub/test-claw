@@ -4,6 +4,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { isToolUIPart, getToolName, type UIMessage } from "ai";
+import { useKumoToastManager } from "@cloudflare/kumo/components/toast";
 import type { useAgent } from "agents/react";
 import type { ChatAgent } from "../../server";
 import type { SidebarTarget, TargetActivitySummary } from "../../reality";
@@ -23,7 +24,8 @@ export function useTargetData({
   messages,
   backgroundJobs,
   refreshTargetsRef,
-  refreshActivityRef
+  refreshActivityRef,
+  onWatchIntentSuggestedRef
 }: {
   agent: { stub: AgentStub };
   connected: boolean;
@@ -31,12 +33,15 @@ export function useTargetData({
   backgroundJobs: BackgroundJob[];
   refreshTargetsRef: MutableRefObject<() => void>;
   refreshActivityRef: MutableRefObject<() => void>;
+  onWatchIntentSuggestedRef?: MutableRefObject<(targetId: string) => void>;
 }) {
+  const toasts = useKumoToastManager();
   const [targets, setTargets] = useState<SidebarTarget[]>([]);
   const [targetsLoading, setTargetsLoading] = useState(false);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
   const [activity, setActivity] = useState<TargetActivitySummary | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [intentBusy, setIntentBusy] = useState(false);
   const selectedTargetIdRef = useRef<string | null>(null);
 
   const refreshTargets = useCallback(async () => {
@@ -148,6 +153,113 @@ export function useTargetData({
     void refreshActivity();
   }, [refreshTargets, refreshActivity]);
 
+  const applyIntentDraft = useCallback(
+    async (input: {
+      proposalId: string;
+      focus: string[];
+      ignore: string[];
+      priority: string[];
+    }) => {
+      const targetId = selectedTargetIdRef.current;
+      if (!connected || !targetId || intentBusy) return;
+
+      setIntentBusy(true);
+      try {
+        const result = (await agent.stub.applyWatchIntentDraft({
+          targetId,
+          ...input
+        })) as
+          | {
+              applied: true;
+              canInitialize: boolean;
+              alreadyInitialized: boolean;
+              targetName: string;
+            }
+          | { applied: false; message: string };
+
+        if (!result.applied) {
+          toasts.add({
+            title: "Watch Intent 적용 실패",
+            description: result.message,
+            timeout: 5000
+          });
+          return;
+        }
+
+        await refreshTargets();
+        await refreshActivity();
+        const initHint = result.canInitialize
+          ? result.alreadyInitialized
+            ? "Reality는 이미 초기화되어 있습니다."
+            : "채팅에서 초기 Reality 생성을 요청할 수 있습니다."
+          : "이 주제는 source pack이 없어 initialize를 건너뛰면 됩니다.";
+        toasts.add({
+          title: "Watch Intent 적용됨",
+          description: `${result.targetName} · ${initHint}`,
+          timeout: 0
+        });
+      } catch (error) {
+        console.error("Failed to apply watch intent draft:", error);
+        toasts.add({
+          title: "Watch Intent 적용 실패",
+          description: error instanceof Error ? error.message : String(error),
+          timeout: 5000
+        });
+      } finally {
+        setIntentBusy(false);
+      }
+    },
+    [agent, connected, intentBusy, refreshActivity, refreshTargets, toasts]
+  );
+
+  const rejectIntentProposal = useCallback(
+    async (proposalId: string) => {
+      const targetId = selectedTargetIdRef.current;
+      if (!connected || !targetId || intentBusy) return;
+
+      setIntentBusy(true);
+      try {
+        const result = (await agent.stub.rejectWatchIntentProposal({
+          targetId,
+          proposalId
+        })) as { rejected: true } | { rejected: false; message: string };
+
+        if (!result.rejected) {
+          toasts.add({
+            title: "제안 거절 실패",
+            description: result.message,
+            timeout: 5000
+          });
+          return;
+        }
+
+        await refreshActivity();
+        toasts.add({
+          title: "Watch Intent 제안 거절됨",
+          description: "직접 관심 설정을 입력할 수 있습니다.",
+          timeout: 5000
+        });
+      } catch (error) {
+        console.error("Failed to reject watch intent proposal:", error);
+        toasts.add({
+          title: "제안 거절 실패",
+          description: error instanceof Error ? error.message : String(error),
+          timeout: 5000
+        });
+      } finally {
+        setIntentBusy(false);
+      }
+    },
+    [agent, connected, intentBusy, refreshActivity, toasts]
+  );
+
+  if (onWatchIntentSuggestedRef) {
+    onWatchIntentSuggestedRef.current = (targetId: string) => {
+      selectedTargetIdRef.current = targetId;
+      setSelectedTargetId(targetId);
+    };
+  }
+
   return {
     targets,
     targetsLoading,
@@ -160,6 +272,9 @@ export function useTargetData({
     refreshTargets,
     refreshActivity,
     refreshSidebar,
-    toggleSelectedTarget
+    toggleSelectedTarget,
+    intentBusy,
+    applyIntentDraft,
+    rejectIntentProposal
   };
 }
