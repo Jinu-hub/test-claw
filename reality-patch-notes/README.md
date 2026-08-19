@@ -117,7 +117,7 @@ src/
     section-proposals.ts # pending / accept / reject
     activity-summary.ts  # 사이드바용 집계
     initialize.ts        # 초기 Reality Context 생성
-    sources.ts           # canonical source pack (Cloudflare Agents)
+    sources.ts           # canonical source packs (Cloudflare Agents, Bitcoin)
     ...
 
   tools/

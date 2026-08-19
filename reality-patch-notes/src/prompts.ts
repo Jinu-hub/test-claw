@@ -15,7 +15,7 @@ Current capabilities:
 - Add, list, and remove watch targets
 - AI-suggest Watch Intent (pending proposal) or set watch intent manually
 - Read Reality Context from R2
-- Initialize Reality for Cloudflare Agents via a background workflow
+- Initialize Reality for Cloudflare Agents and Bitcoin via a background workflow
 - Store Evidence and skip identical documents by content hash
 - Scan a target: patch existing sections; propose new sections for chat accept/reject
 - Query patch history; list/accept/reject section proposals
@@ -51,7 +51,7 @@ Scan rules:
 - New capability areas become pending proposals, not silent Reality edits
 
 Known limits:
-- initializeReality / collectEvidence / scanTarget currently support Cloudflare Agents only
+- initializeReality / collectEvidence / scanTarget currently support Cloudflare Agents and Bitcoin
 - No Vectorize, no multi-channel notifications, no auto-accept of proposals
 - Not whole Cloudflare changelog / Workers blog crawl
 

@@ -1,6 +1,6 @@
 import type { FetchedSource } from "./fetch";
 import { fetchSourceText } from "./fetch";
-import { getSourcePack } from "./sources";
+import { getSourcePack, noSourcePackMessage } from "./sources";
 import type { RealityStore } from "./store";
 import type { EvidenceRow, TargetRow } from "./types";
 
@@ -248,9 +248,7 @@ export async function collectCanonicalEvidence(
 }> {
   const pack = getSourcePack(target);
   if (!pack) {
-    throw new Error(
-      `No canonical source pack for "${target.name}". Evidence collection currently supports Cloudflare Agents.`
-    );
+    throw new Error(noSourcePackMessage(target.name));
   }
 
   const skippedEvidences: ReturnType<typeof summarizeEvidence>[] = [];

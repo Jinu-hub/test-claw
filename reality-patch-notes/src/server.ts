@@ -24,6 +24,7 @@ import {
   getTargetActivitySummary,
   isRealityInitialized,
   listTargets,
+  noSourcePackMessage,
   parseScheduledTaskPayload,
   scanTarget,
   seedFixtureIfNeeded,
@@ -82,9 +83,7 @@ export class ChatAgent extends AIChatAgent<Env> {
 
     const pack = getSourcePack(target);
     if (!pack) {
-      throw new Error(
-        `No canonical source pack for "${target.name}". Currently only Cloudflare Agents is supported.`
-      );
+      throw new Error(noSourcePackMessage(target.name));
     }
 
     const existing = await getCurrentContext(store, targetId);
@@ -149,9 +148,7 @@ export class ChatAgent extends AIChatAgent<Env> {
 
     const pack = getSourcePack(target);
     if (!pack) {
-      throw new Error(
-        `No canonical source pack for "${target.name}". Currently only Cloudflare Agents is supported.`
-      );
+      throw new Error(noSourcePackMessage(target.name));
     }
 
     const existing = await getCurrentContext(store, targetId);

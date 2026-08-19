@@ -2,7 +2,7 @@ import { createWorkersAI } from "workers-ai-provider";
 import { generateText } from "ai";
 import type { FetchedSource } from "./fetch";
 import { fetchSourceText } from "./fetch";
-import { getSourcePack, type SectionBlueprint } from "./sources";
+import { getSourcePack, noSourcePackMessage, type SectionBlueprint } from "./sources";
 import {
   markUncomparedEvidenceCompared,
   persistFetchedEvidence
@@ -119,9 +119,7 @@ export async function buildInitialRealityContext(input: {
 }): Promise<InitializeRealityResult> {
   const pack = getSourcePack(input.target);
   if (!pack) {
-    throw new Error(
-      `No canonical source pack for "${input.target.name}". Currently only Cloudflare Agents is supported.`
-    );
+    throw new Error(noSourcePackMessage(input.target.name));
   }
 
   const intent = parseWatchIntent(input.target.watch_intent_json);

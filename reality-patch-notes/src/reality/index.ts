@@ -93,6 +93,7 @@ export { ensureRealitySchema, type SqlExecutor } from "./schema";
 export {
   getSourcePack,
   listSupportedSourcePackIds,
+  noSourcePackMessage,
   type SectionBlueprint,
   type SourcePack,
   type SourceRef

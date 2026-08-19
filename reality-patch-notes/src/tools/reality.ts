@@ -20,6 +20,7 @@ import {
   listIntentProposals,
   listSectionProposals,
   listTargets,
+  noSourcePackMessage,
   parseRealityContext,
   queryPatches,
   rejectIntentProposal,
@@ -67,7 +68,7 @@ export const realityPrompt = `Target management tools:
 Onboarding (new targets):
 - addTarget registers only; when intent is empty, a background suggestWatchIntent workflow runs automatically
 - Watch Intent suggestions are proposals (pending) — never claim intent is saved until acceptWatchIntentProposal or setWatchIntent succeeds
-- After intent is accepted or set manually, ask whether to initializeReality now; skip initialize for targets without a source pack (e.g. Bitcoin)
+- After intent is accepted or set manually, ask whether to initializeReality now; skip initialize only when getSourcePack would fail (no pack)
 
 Mandatory tool use:
 - "추가해줘" → addTarget before confirming
@@ -230,7 +231,7 @@ export function createRealityTools(agent: RealityToolHost) {
 
     initializeReality: tool({
       description:
-        "Start a background workflow that fetches canonical docs and writes the initial Reality Context to R2. REQUIRED before claiming baseline research completed. Currently supports Cloudflare Agents. Use force=true to rebuild an already initialized target.",
+        "Start a background workflow that fetches canonical docs and writes the initial Reality Context to R2. REQUIRED before claiming baseline research completed. Supports Cloudflare Agents and Bitcoin. Use force=true to rebuild an already initialized target.",
       inputSchema: z.object({
         targetId: z.string().optional(),
         name: z.string().optional(),
@@ -254,8 +255,7 @@ export function createRealityTools(agent: RealityToolHost) {
             started: false as const,
             targetId: resolved.target.id,
             name: resolved.target.name,
-            message:
-              "No canonical source pack for this target yet. Currently only Cloudflare Agents is supported."
+            message: noSourcePackMessage(resolved.target.name)
           };
         }
 
@@ -316,8 +316,7 @@ export function createRealityTools(agent: RealityToolHost) {
             started: false as const,
             targetId: resolved.target.id,
             name: resolved.target.name,
-            message:
-              "No canonical source pack for this target yet. Currently only Cloudflare Agents is supported."
+            message: noSourcePackMessage(resolved.target.name)
           };
         }
 

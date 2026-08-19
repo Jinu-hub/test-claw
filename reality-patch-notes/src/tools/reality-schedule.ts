@@ -5,6 +5,7 @@ import {
   getCurrentContext,
   getSourcePack,
   isRealityInitialized,
+  noSourcePackMessage,
   parseScheduledTaskPayload,
   resolveTargetOrSingle,
   type RealityStore
@@ -120,8 +121,7 @@ export function createRealityScheduleTools(agent: RealityScheduleToolHost) {
             scheduled: false as const,
             targetId: resolved.target.id,
             name: resolved.target.name,
-            message:
-              "No canonical source pack for this target yet. Scheduled scans currently support Cloudflare Agents only."
+            message: noSourcePackMessage(resolved.target.name)
           };
         }
 

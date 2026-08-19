@@ -20,7 +20,7 @@ import {
   upsertPendingProposal,
   type SectionProposalSummary
 } from "./section-proposals";
-import { getSourcePack } from "./sources";
+import { getSourcePack, noSourcePackMessage } from "./sources";
 import {
   getCurrentContext,
   parseWatchIntent,
@@ -211,9 +211,7 @@ export async function scanTarget(input: {
   const { store, ai, target } = input;
   const pack = getSourcePack(target);
   if (!pack) {
-    throw new Error(
-      `No canonical source pack for "${target.name}". Currently only Cloudflare Agents is supported.`
-    );
+    throw new Error(noSourcePackMessage(target.name));
   }
 
   const context = await getCurrentContext(store, target.id);
