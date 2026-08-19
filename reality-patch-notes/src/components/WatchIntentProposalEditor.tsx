@@ -156,16 +156,11 @@ export function WatchIntentProposalEditor({
       ref={rootRef}
       className="rounded-xl border border-kumo-brand/30 bg-kumo-control/25 px-2.5 py-2.5 space-y-3"
     >
-      <div>
-        <p className="text-[11px] font-semibold text-kumo-default">
-          Watch Intent 제안
+      {proposal.rationale ? (
+        <p className="text-[10px] leading-relaxed text-kumo-subtle">
+          {proposal.rationale}
         </p>
-        {proposal.rationale ? (
-          <p className="mt-1 text-[10px] leading-relaxed text-kumo-subtle">
-            {proposal.rationale}
-          </p>
-        ) : null}
-      </div>
+      ) : null}
 
       <IntentSection
         title="Focus"

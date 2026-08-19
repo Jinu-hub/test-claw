@@ -2,7 +2,12 @@
  * Left sidebar — target list + activity summary.
  * Data via RPC (listStoredTargets, getTargetActivity), not chat tools.
  */
-import { ArrowsClockwiseIcon, CrosshairIcon } from "@phosphor-icons/react";
+import { useState, type ReactNode } from "react";
+import {
+  ArrowsClockwiseIcon,
+  CaretDownIcon,
+  CrosshairIcon
+} from "@phosphor-icons/react";
 import { Button, Text } from "@cloudflare/kumo";
 import type { SidebarTarget, TargetActivitySummary } from "../reality";
 import { WatchIntentProposalEditor } from "./WatchIntentProposalEditor";
@@ -82,6 +87,71 @@ function patchTypeLabel(type: string): string {
   }
 }
 
+function SidebarSection({
+  title,
+  count,
+  empty,
+  emptyText,
+  defaultOpen = false,
+  children
+}: {
+  title: string;
+  count?: number;
+  empty: boolean;
+  emptyText: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <section>
+      {empty ? (
+        <>
+          <div className="flex items-center justify-between gap-2 px-1 pb-1.5 mb-2 border-b border-kumo-line">
+            <h3 className="text-[11px] font-semibold tracking-wide text-kumo-default">
+              {title}
+            </h3>
+            {count != null ? (
+              <span className="rounded-full bg-kumo-control px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-kumo-subtle">
+                {count}
+              </span>
+            ) : null}
+          </div>
+          <p className="px-1 text-[12px] leading-relaxed text-kumo-subtle">
+            {emptyText}
+          </p>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen((current) => !current)}
+            className="flex w-full items-center justify-between gap-2 px-1 pb-1.5 mb-2 border-b border-kumo-line text-left"
+          >
+            <h3 className="text-[11px] font-semibold tracking-wide text-kumo-default">
+              {title}
+            </h3>
+            <span className="flex items-center gap-1 shrink-0">
+              {count != null ? (
+                <span className="rounded-full bg-kumo-control px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-kumo-subtle">
+                  {count}
+                </span>
+              ) : null}
+              <CaretDownIcon
+                size={12}
+                className={`text-kumo-subtle transition-transform ${open ? "" : "-rotate-90"}`}
+              />
+            </span>
+          </button>
+          {open ? children : null}
+        </>
+      )}
+    </section>
+  );
+}
+
 function patchTypeClass(type: string): string {
   switch (type) {
     case "ADDED":
@@ -134,7 +204,9 @@ export function TargetSidebar({
   const visible = targets.filter((target) => target.status !== "archived");
   const selected = visible.find((target) => target.id === selectedId) ?? null;
   const scanSummary = lastScanSummary(activity, scanInProgress);
-  const recentPatches = activity?.recentPatches.slice(0, 4) ?? [];
+  const recentPatches = [...(activity?.recentPatches ?? [])]
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, 4);
   const pendingProposals = activity?.pendingProposals ?? [];
   const pendingIntent = activity?.pendingIntentProposal ?? null;
 
@@ -217,24 +289,7 @@ export function TargetSidebar({
         )}
 
         {selected && (
-          <div className="mt-3 border-t border-kumo-line pt-3 px-1 space-y-3">
-            {pendingIntent ? (
-              <WatchIntentProposalEditor
-                proposal={pendingIntent}
-                disabled={!connected}
-                busy={intentBusy}
-                onApply={(draft) =>
-                  onApplyIntentDraft({
-                    proposalId: pendingIntent.id,
-                    focus: draft.focus,
-                    ignore: draft.ignore,
-                    priority: draft.priority
-                  })
-                }
-                onReject={() => onRejectIntentProposal(pendingIntent.id)}
-              />
-            ) : null}
-
+          <div className="mt-3 border-t border-kumo-line pt-3 px-1 space-y-4">
             <section className="rounded-xl bg-kumo-control/35 px-3 py-2.5">
               <p className="text-[11px] font-medium text-kumo-subtle">
                 마지막 확인
@@ -258,45 +313,15 @@ export function TargetSidebar({
               )}
             </section>
 
-            <section>
-              <div className="flex items-baseline justify-between gap-2 px-1 mb-1.5">
-                <p className="text-[11px] font-medium text-kumo-subtle">
-                  오늘 바뀐 점
-                </p>
-                <span className="rounded-full bg-kumo-control px-1.5 py-0.5 text-[10px] tabular-nums text-kumo-subtle">
-                  {activity?.patchesToday ?? 0}
-                </span>
-              </div>
-              {recentPatches.length === 0 ? (
-                <p className="px-1 text-[12px] leading-relaxed text-kumo-subtle">
-                  아직 기록된 변화가 없습니다.
-                </p>
-              ) : (
-                <ul className="space-y-1">
-                  {recentPatches.map((patch) => (
-                    <li key={patch.id}>
-                      <button
-                        type="button"
-                        className="w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-kumo-control/70"
-                        onClick={() =>
-                          onAsk(`${patch.title} 패치 자세히 설명해줘`)
-                        }
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${patchTypeClass(patch.type)}`}
-                          >
-                            {patchTypeLabel(patch.type)}
-                          </span>
-                          <span className="truncate text-[12px] font-medium text-kumo-default">
-                            {patch.title}
-                          </span>
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+            <SidebarSection
+              title="오늘 바뀐 점"
+              count={activity?.patchesToday ?? 0}
+              empty={(activity?.patchesToday ?? 0) === 0}
+              emptyText="오늘 기록된 변화는 없습니다."
+            >
+              <p className="px-1 text-[12px] leading-relaxed text-kumo-default">
+                오늘 {activity?.patchesToday}건이 기록됐습니다.
+              </p>
               <button
                 type="button"
                 className="mt-1.5 px-1 text-[11px] font-medium text-kumo-brand hover:underline"
@@ -304,58 +329,103 @@ export function TargetSidebar({
               >
                 오늘 변화 물어보기
               </button>
-            </section>
+            </SidebarSection>
 
-            {!pendingIntent ? (
-              <section>
-                <div className="flex items-baseline justify-between gap-2 px-1 mb-1.5">
-                  <p className="text-[11px] font-medium text-kumo-subtle">
-                    관심 설정 제안
-                  </p>
-                </div>
-                <p className="px-1 text-[12px] leading-relaxed text-kumo-subtle">
-                  대기 중인 Watch Intent 제안이 없습니다.
-                </p>
-              </section>
-            ) : null}
+            <SidebarSection
+              title="최근 바뀐 점"
+              count={recentPatches.length}
+              empty={recentPatches.length === 0}
+              emptyText="아직 기록된 변화가 없습니다."
+            >
+              <ul className="space-y-1">
+                {recentPatches.map((patch) => (
+                  <li key={patch.id}>
+                    <button
+                      type="button"
+                      className="w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-kumo-control/70"
+                      onClick={() =>
+                        onAsk(`${patch.title} 패치 자세히 설명해줘`)
+                      }
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${patchTypeClass(patch.type)}`}
+                        >
+                          {patchTypeLabel(patch.type)}
+                        </span>
+                        <span className="min-w-0 truncate text-[12px] font-medium text-kumo-default">
+                          {patch.title}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-[10px] text-kumo-subtle">
+                        {formatShortTime(patch.createdAt)}
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className="mt-1.5 px-1 text-[11px] font-medium text-kumo-brand hover:underline"
+                onClick={() => onAsk("최근 바뀐 점 목록 보여줘")}
+              >
+                최근 변화 물어보기
+              </button>
+            </SidebarSection>
 
-            <section>
-              <div className="flex items-baseline justify-between gap-2 px-1 mb-1.5">
-                <p className="text-[11px] font-medium text-kumo-subtle">
-                  대기 중인 제안
-                </p>
-                <span className="rounded-full bg-kumo-control px-1.5 py-0.5 text-[10px] tabular-nums text-kumo-subtle">
-                  {pendingProposals.length}
-                </span>
-              </div>
-              {pendingProposals.length === 0 ? (
-                <p className="px-1 text-[12px] leading-relaxed text-kumo-subtle">
-                  새 영역 제안이 없습니다.
-                </p>
-              ) : (
-                <ul className="space-y-1">
-                  {pendingProposals.map((proposal) => (
-                    <li key={proposal.id}>
-                      <button
-                        type="button"
-                        className="w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-kumo-control/70"
-                        onClick={() =>
-                          onAsk(
-                            `${proposal.title} 제안을 설명해줘. 필요하면 반영할지 물어봐.`
-                          )
-                        }
-                      >
-                        <div className="truncate text-[12px] font-medium text-kumo-default">
-                          {proposal.title}
-                        </div>
-                        <div className="mt-0.5 text-[10px] text-kumo-subtle">
-                          반영 대기
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+            <SidebarSection
+              title="관심 설정 제안"
+              count={pendingIntent ? 1 : 0}
+              empty={!pendingIntent}
+              emptyText="대기 중인 Watch Intent 제안이 없습니다."
+              defaultOpen
+            >
+              {pendingIntent ? (
+                <WatchIntentProposalEditor
+                  proposal={pendingIntent}
+                  disabled={!connected}
+                  busy={intentBusy}
+                  onApply={(draft) =>
+                    onApplyIntentDraft({
+                      proposalId: pendingIntent.id,
+                      focus: draft.focus,
+                      ignore: draft.ignore,
+                      priority: draft.priority
+                    })
+                  }
+                  onReject={() => onRejectIntentProposal(pendingIntent.id)}
+                />
+              ) : null}
+            </SidebarSection>
+
+            <SidebarSection
+              title="대기 중인 제안"
+              count={pendingProposals.length}
+              empty={pendingProposals.length === 0}
+              emptyText="새 영역 제안이 없습니다."
+            >
+              <ul className="space-y-1">
+                {pendingProposals.map((proposal) => (
+                  <li key={proposal.id}>
+                    <button
+                      type="button"
+                      className="w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-kumo-control/70"
+                      onClick={() =>
+                        onAsk(
+                          `${proposal.title} 제안을 설명해줘. 필요하면 반영할지 물어봐.`
+                        )
+                      }
+                    >
+                      <div className="truncate text-[12px] font-medium text-kumo-default">
+                        {proposal.title}
+                      </div>
+                      <div className="mt-0.5 text-[10px] text-kumo-subtle">
+                        반영 대기
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
               <button
                 type="button"
                 className="mt-1.5 px-1 text-[11px] font-medium text-kumo-brand hover:underline"
@@ -363,7 +433,7 @@ export function TargetSidebar({
               >
                 제안 목록 보기
               </button>
-            </section>
+            </SidebarSection>
           </div>
         )}
       </div>
