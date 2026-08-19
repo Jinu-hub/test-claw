@@ -20,7 +20,13 @@ import {
   upsertPendingProposal,
   type SectionProposalSummary
 } from "./section-proposals";
-import { getSourcePack, noSourcePackMessage } from "./sources";
+import {
+  findSourceByUrl,
+  getSourcePack,
+  isInsufficientEvidenceBody,
+  noSourcePackMessage,
+  sourcesForScan
+} from "./sources";
 import {
   getCurrentContext,
   parseWatchIntent,
@@ -157,6 +163,15 @@ changed: false is the CORRECT and usual success when evidence restates, paraphra
 Watch focus: ${input.intent.focus.join(", ") || "(none)"}
 Watch ignore: ${input.intent.ignore.join(", ") || "(none)"}
 Allowed section keys (existing Reality only): ${allowedKeys.join(", ")}
+${
+  input.sections.length === 1 &&
+  isInsufficientEvidenceBody(input.sections[0].body)
+    ? "The current section is INSUFFICIENT_EVIDENCE. Only replace it if NEW EVIDENCE actually supports this section. Do not fill it from general knowledge."
+    : ""
+}
+
+Evidence in this prompt is scoped to these sections. Do not patch other keys.
+If evidence does not support a material change, return changed: false.
 
 For facts that belong to an EXISTING section key:
 - Put them in patches (type CHANGED/ADDED/REMOVED/DEPRECATED)
@@ -228,7 +243,7 @@ export async function scanTarget(input: {
   let failed = 0;
   let fetched = 0;
 
-  for (const source of pack.sources) {
+  for (const source of sourcesForScan(pack.sources)) {
     const fetchedSource = await fetchSourceText(source);
     if (fetchedSource.ok) fetched += 1;
     const result = await ingestFetchedEvidence(store, target.id, fetchedSource);
@@ -265,9 +280,14 @@ export async function scanTarget(input: {
   const proposals: SectionProposalSummary[] = [];
   let nextContext = context;
 
-  if (comparable.length > 0) {
+  const applyComparison = async (
+    rows: EvidenceRow[],
+    sections: ContextSection[]
+  ) => {
+    if (rows.length === 0 || sections.length === 0) return;
+
     const evidenceParts: string[] = [];
-    for (const row of comparable) {
+    for (const row of rows) {
       const text = (await loadEvidenceText(store, row)).slice(0, 6000);
       evidenceParts.push(
         `Evidence ${row.id}
@@ -284,12 +304,12 @@ ${text}`
       ai,
       targetName: target.name,
       intent,
-      sections: nextContext.sections,
+      sections,
       evidenceBlock: evidenceParts.join("\n\n")
     });
 
-    const evidenceIds = comparable.map((row) => row.id);
-    const allowed = new Set(nextContext.sections.map((section) => section.key));
+    const evidenceIds = rows.map((row) => row.id);
+    const allowed = new Set(sections.map((section) => section.key));
 
     for (const candidate of comparison.patches) {
       if (!allowed.has(candidate.sectionKey)) continue;
@@ -331,7 +351,9 @@ ${text}`
     for (const proposal of comparison.proposedSections) {
       const sectionKey = normalizeSectionKey(proposal.sectionKey);
       if (!sectionKey) continue;
-      if (allowed.has(sectionKey)) continue;
+      if (nextContext.sections.some((section) => section.key === sectionKey)) {
+        continue;
+      }
       if (
         isIgnoredByWatchIntent(
           `${proposal.title}\n${proposal.body}\n${proposal.summary}`,
@@ -353,8 +375,38 @@ ${text}`
         })
       );
     }
+  };
 
-    markEvidenceCompared(store, evidenceIds, comparedAt);
+  if (comparable.length > 0) {
+    const grouped = new Map<string, EvidenceRow[]>();
+    const unbound: EvidenceRow[] = [];
+    for (const row of comparable) {
+      const bound = findSourceByUrl(pack.sources, row.url)?.sections ?? [];
+      if (bound.length === 0) {
+        unbound.push(row);
+        continue;
+      }
+      for (const key of bound) {
+        const list = grouped.get(key) ?? [];
+        list.push(row);
+        grouped.set(key, list);
+      }
+    }
+
+    await applyComparison(unbound, nextContext.sections);
+    for (const [sectionKey, rows] of grouped) {
+      const section = nextContext.sections.find(
+        (item) => item.key === sectionKey
+      );
+      if (!section) continue;
+      await applyComparison(rows, [section]);
+    }
+
+    markEvidenceCompared(
+      store,
+      comparable.map((row) => row.id),
+      comparedAt
+    );
   }
 
   if (patches.length > 0) {
@@ -505,6 +557,9 @@ export async function injectSandboxSessionTestEvidence(
     title: "Sandbox session duration (synthetic test)",
     publisher: "Reality Patch Notes Test",
     sourceType: "synthetic_test",
+    sections: [],
+    role: "watch",
+    refresh: "daily",
     ok: true,
     text: `SYNTHETIC TEST EVIDENCE (not a live Cloudflare document).
 Nonce: ${nonce}
@@ -579,6 +634,9 @@ export async function injectNewSectionTestEvidence(
     title: "Agents Voice capability (synthetic test)",
     publisher: "Reality Patch Notes Test",
     sourceType: "synthetic_test",
+    sections: [],
+    role: "watch",
+    refresh: "daily",
     ok: true,
     text: `SYNTHETIC TEST EVIDENCE (not a live Cloudflare document).
 Nonce: ${nonce}

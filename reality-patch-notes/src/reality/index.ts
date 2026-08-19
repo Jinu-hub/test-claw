@@ -91,12 +91,20 @@ export {
 } from "./suggest-intent";
 export { ensureRealitySchema, type SqlExecutor } from "./schema";
 export {
+  findSourceByUrl,
   getSourcePack,
+  insufficientEvidenceBody,
+  isInsufficientEvidenceBody,
   listSupportedSourcePackIds,
   noSourcePackMessage,
+  sourceCoversSection,
+  sourcesForScan,
+  INSUFFICIENT_EVIDENCE_MARKER,
   type SectionBlueprint,
   type SourcePack,
-  type SourceRef
+  type SourceRef,
+  type SourceRefresh,
+  type SourceRole
 } from "./sources";
 export {
   getCurrentContext,

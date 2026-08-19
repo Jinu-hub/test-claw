@@ -2,7 +2,13 @@ import { createWorkersAI } from "workers-ai-provider";
 import { generateText } from "ai";
 import type { FetchedSource } from "./fetch";
 import { fetchSourceText } from "./fetch";
-import { getSourcePack, noSourcePackMessage, type SectionBlueprint } from "./sources";
+import {
+  getSourcePack,
+  insufficientEvidenceBody,
+  noSourcePackMessage,
+  sourceCoversSection,
+  type SectionBlueprint
+} from "./sources";
 import {
   markUncomparedEvidenceCompared,
   persistFetchedEvidence
@@ -49,11 +55,14 @@ async function writeSectionBody(input: {
   section: SectionBlueprint;
   sources: FetchedSource[];
 }): Promise<string> {
-  const usable = input.sources.filter((s) => s.ok && s.text);
+  const usable = input.sources.filter(
+    (source) =>
+      source.ok &&
+      source.text &&
+      sourceCoversSection(source, input.section.key)
+  );
   if (usable.length === 0) {
-    return `Insufficient fetched evidence for ${input.section.title}.
-Re-run initialization after source fetch succeeds.
-Open question: confirm canonical docs for this section.`;
+    return insufficientEvidenceBody(input.section.title, input.section.key);
   }
 
   const workersai = createWorkersAI({ binding: input.ai });
@@ -71,10 +80,18 @@ Watch focus: ${input.intent.focus.join(", ") || "(none)"}
 Watch ignore: ${input.intent.ignore.join(", ") || "(none)"}
 
 Rules:
-- Use ONLY the provided sources
+- Use ONLY the provided sources. They are already bound to this section.
+- Do NOT use general knowledge or facts from other sections.
 - Write 2-5 short paragraphs of current baseline reality
 - Be concrete but do not invent APIs, limits, or features absent from sources
-- If sources are thin for this section, say what is known and what is unconfirmed
+- If the sources do not actually support this section's purpose, reply with EXACTLY:
+
+INSUFFICIENT_EVIDENCE
+
+No bound evidence for section "${input.section.title}" (${input.section.key}).
+Do not infer from other sections or general knowledge.
+status: insufficient_evidence
+
 - No markdown headings
 - No bullet-only dump; short prose is preferred
 - English output
@@ -84,6 +101,9 @@ ${sourceBlock}`
     });
 
     const text = result.text.trim();
+    if (text.startsWith("INSUFFICIENT_EVIDENCE")) {
+      return insufficientEvidenceBody(input.section.title, input.section.key);
+    }
     if (text.length > 40) return text;
   } catch {
     // fall through to extractive baseline
@@ -92,11 +112,9 @@ ${sourceBlock}`
   const snippet = usable
     .map((source) => `${source.title}: ${source.text.slice(0, 400)}`)
     .join("\n");
-  return `Baseline draft for ${input.section.title} from fetched docs.
+  return `Baseline draft for ${input.section.title} from bound sources.
 
-${snippet.slice(0, 1200)}
-
-Note: LLM summarization was unavailable or too short; this extractive draft should be refined later.`;
+${snippet.slice(0, 1200)}`;
 }
 
 export function isRealityInitialized(context: RealityContext | null): boolean {

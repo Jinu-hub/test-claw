@@ -1,8 +1,6 @@
-export type FetchedSource = {
-  url: string;
-  title: string;
-  publisher: string;
-  sourceType: string;
+import type { SourceRef } from "./sources";
+
+export type FetchedSource = SourceRef & {
   ok: boolean;
   status?: number;
   text: string;
@@ -26,12 +24,7 @@ export function htmlToText(html: string): string {
 }
 
 export async function fetchSourceText(
-  source: {
-    url: string;
-    title: string;
-    publisher: string;
-    sourceType: string;
-  },
+  source: SourceRef,
   options?: { maxChars?: number }
 ): Promise<FetchedSource> {
   const maxChars = options?.maxChars ?? 8000;

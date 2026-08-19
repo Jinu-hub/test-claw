@@ -60,7 +60,7 @@ HTTP: `routeAgentRequest` → DO WebSocket / RPC.
 | `store.ts` | target CRUD, R2 `put/getCurrentContext` |
 | `markdown.ts` | RealityContext ↔ markdown 직렬화, 섹션 replace/add |
 | `targets.ts` | add/remove target, Watch Intent 정규화 |
-| `sources.ts` | canonical source packs (Cloudflare Agents, Bitcoin) |
+| `sources.ts` | source packs: `sections` / `role` / `refresh`; empty bound evidence → `INSUFFICIENT_EVIDENCE` |
 | `fetch.ts` | URL → text |
 | `evidence.ts` | hash dedup, R2 persist, list, compare 플래그 |
 | `initialize.ts` | pack sources → AI로 섹션 작성 → R2 current |
@@ -216,7 +216,7 @@ Reality tools/prompts는 **항상 on**.
 
 ## 14. 알려진 한계 (코드·프롬프트에 명시)
 
-- `initializeReality` / `scanTarget`: Cloudflare Agents, Bitcoin source pack
+- Source pack은 Agents / Bitcoin만. 일별 시세·온체인 수집기는 아직 없음
 - Vectorize, multi-channel notify, proposal auto-accept 없음
 - 예약 스캔: 도구 + `executeTask`만, 전용 sidebar UI 없음
 - Tool I/O는 debug toggle 없으면 채팅에 노출될 수 있음
