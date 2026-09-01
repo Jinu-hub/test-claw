@@ -27,15 +27,15 @@
 	"durable_objects": {
 		"bindings": [
 			{
-				"class_name": "PotatoChatAgent",
-				"name": "PotatoChatAgent"
+				"class_name": "TwentyQuestionsAgent",
+				"name": "TwentyQuestionsAgent"
 			}
 		]
 	},
 	"migrations": [
 		{
 			"new_sqlite_classes": [
-				"PotatoChatAgent"
+				"TwentyQuestionsAgent"
 			],
 			"tag": "1"
 		}

@@ -3,15 +3,19 @@ import { routeAgentRequest } from "agents";
 import { createWorkersAI } from "workers-ai-provider";
 import {
   convertToModelMessages,
-  isLoopFinished,
   streamText,
   type StreamTextOnFinishCallback,
   type ToolSet,
-  type UIMessage
 } from "ai";
-import { getWeather, getLocation, buyPlaneTicket, getTickets } from "./tools";
+import {
+  buildSystemPrompt,
+  createInitialState,
+  type GameState,
+} from "./game";
 
-export class PotatoChatAgent extends AIChatAgent<Env> {
+export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
+  initialState: GameState = createInitialState();
+
   async onChatMessage(
     _onFinish: StreamTextOnFinishCallback<ToolSet>,
     options?: { abortSignal?: AbortSignal },
@@ -19,34 +23,20 @@ export class PotatoChatAgent extends AIChatAgent<Env> {
     const workersAi = createWorkersAI({
       binding: this.env.AI,
     });
-    const textStream = await streamText({
-      model: workersAi("@cf/zai-org/glm-4.7-flash"),
-      messages: await convertToModelMessages(this.messages),
-      tools: {
-        getWeather,
-        getLocation,
-        getTickets,
-        buyPlaneTicket,
-      },
-      abortSignal: options?.abortSignal,
-      stopWhen: isLoopFinished(),
-    }) 
-    return textStream.toUIMessageStreamResponse(); 
-  }
 
-  sanitizeMessageForPersistence(message: UIMessage): UIMessage {
-    return {
-      ...message,
-      parts: message.parts.map((part) => {
-        if (part.type === "text") {
-          return {
-            ...part,
-            text: part.text.replace("food", "❌ stop eating u fat ❌"),
-          };
-        }
-        return part;
-      }),
-    };
+    const result = streamText({
+      model: workersAi("@cf/zai-org/glm-4.7-flash"),
+      system: buildSystemPrompt(this.state.secret, this.state.category),
+      messages: await convertToModelMessages(this.messages),
+      abortSignal: options?.abortSignal,
+      providerOptions: {
+        "workers-ai": {
+          enable_thinking: false,
+        },
+      },
+    });
+
+    return result.toUIMessageStreamResponse({ sendReasoning: false });
   }
 }
 
