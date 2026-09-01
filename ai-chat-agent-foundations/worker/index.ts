@@ -17,7 +17,7 @@ import {
   type GameState,
 } from "./game";
 
-export type { Category, GameState } from "./game";
+export type { Category, GameState, PublicGameView } from "./game";
 
 export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
   initialState: GameState = createInitialState();
@@ -27,8 +27,9 @@ export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
     options?: { abortSignal?: AbortSignal },
   ) {
     const userText = getLastUserMessageText(this.messages);
+    const wasSolved = this.state.solved;
 
-    if (userText && !this.state.solved) {
+    if (userText && !wasSolved) {
       if (checkGuess(userText, this.state.secret)) {
         this.setState({
           ...this.state,

@@ -9,6 +9,23 @@ export type GameState = {
   category: Category;
 };
 
+/** Client-safe view — secret is only exposed after the game is solved. */
+export type PublicGameView = {
+  solved: boolean;
+  questionCount: number;
+  category: Category;
+  revealedAnswer: string | null;
+};
+
+export function toPublicGameView(state: GameState): PublicGameView {
+  return {
+    solved: state.solved,
+    questionCount: state.questionCount,
+    category: state.category,
+    revealedAnswer: state.solved ? state.secret : null,
+  };
+}
+
 export const CATEGORIES: Category[] = ["celebrities", "animals", "countries"];
 
 export const CATEGORY_LABELS: Record<Category, string> = {

@@ -5,28 +5,30 @@ import { useEffect, useRef, useState } from "react";
 import {
   CATEGORIES,
   CATEGORY_LABELS,
+  toPublicGameView,
   type Category,
   type GameState,
+  type PublicGameView,
 } from "../worker/game";
 
-const INITIAL_STATE: GameState = {
+const INITIAL_VIEW: PublicGameView = toPublicGameView({
   secret: "",
   solved: false,
   questionCount: 0,
   category: "animals",
-};
+});
 
 function App() {
-  const [gameState, setGameState] = useState<GameState>(INITIAL_STATE);
+  const [gameView, setGameView] = useState<PublicGameView>(INITIAL_VIEW);
   const [nextCategory, setNextCategory] = useState<Category>("animals");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const agent = useAgent({
     agent: "TwentyQuestionsAgent",
     onStateUpdate: (state) => {
-      const nextState = state as GameState;
-      setGameState(nextState);
-      setNextCategory(nextState.category);
+      const view = toPublicGameView(state as GameState);
+      setGameView(view);
+      setNextCategory(view.category);
     },
   });
 
@@ -35,15 +37,15 @@ function App() {
   });
 
   const isStreaming = status === "streaming" || status === "submitted";
-  const gameActive = messages.length > 0 && !gameState.solved;
+  const gameActive = messages.length > 0 && !gameView.solved;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isStreaming, gameState.solved]);
+  }, [messages, isStreaming, gameView.solved]);
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (gameState.solved || isStreaming) return;
+    if (gameView.solved || isStreaming) return;
 
     const formData = new FormData(e.currentTarget);
     const message = formData.get("input") as string;
@@ -89,15 +91,15 @@ function App() {
             <div className="flex shrink-0 flex-col items-end gap-1 text-xs">
               <span
                 className={`rounded-full px-2.5 py-1 font-medium ${
-                  gameState.solved
+                  gameView.solved
                     ? "bg-emerald-100 text-emerald-700"
                     : "bg-blue-100 text-blue-700"
                 }`}
               >
-                {gameState.solved ? "You won!" : "In progress"}
+                {gameView.solved ? "You won!" : "In progress"}
               </span>
               <span className="text-zinc-500">
-                Questions: {gameState.questionCount}
+                Questions: {gameView.questionCount}
               </span>
             </div>
           </div>
@@ -129,14 +131,14 @@ function App() {
             )}
           </div>
 
-          {gameState.solved && (
+          {gameView.solved && gameView.revealedAnswer && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
               <p className="font-medium">Correct!</p>
               <p className="mt-1">
                 The answer was{" "}
-                <strong className="font-semibold">{gameState.secret}</strong> in{" "}
-                {gameState.questionCount}{" "}
-                {gameState.questionCount === 1 ? "question" : "questions"}.
+                <strong className="font-semibold">{gameView.revealedAnswer}</strong>{" "}
+                in {gameView.questionCount}{" "}
+                {gameView.questionCount === 1 ? "question" : "questions"}.
               </p>
             </div>
           )}
@@ -146,17 +148,17 @@ function App() {
               <input
                 name="input"
                 placeholder={
-                  gameState.solved
+                  gameView.solved
                     ? "Game over — start a new game"
                     : "Ask a yes/no question, or guess the answer..."
                 }
                 autoComplete="off"
-                disabled={gameState.solved || isStreaming}
+                disabled={gameView.solved || isStreaming}
                 className="min-w-0 flex-1 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm outline-none transition focus:border-zinc-400 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
               />
               <button
                 type="submit"
-                disabled={gameState.solved || isStreaming}
+                disabled={gameView.solved || isStreaming}
                 className="shrink-0 rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Send
@@ -186,7 +188,7 @@ function App() {
                 <p className="text-xs text-zinc-500">
                   Category:{" "}
                   <span className="font-medium text-zinc-700">
-                    {CATEGORY_LABELS[gameState.category]}
+                    {CATEGORY_LABELS[gameView.category]}
                   </span>
                 </p>
               </div>
@@ -237,7 +239,7 @@ function App() {
       <footer className="sticky bottom-0 border-t border-zinc-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-2 text-xs text-zinc-500">
           <span className="capitalize">
-            Playing: {CATEGORY_LABELS[gameState.category]}
+            Playing: {CATEGORY_LABELS[gameView.category]}
           </span>
           <div className="flex items-center gap-3">
             {isStreaming && (
