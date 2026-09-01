@@ -9,6 +9,14 @@ export type GameState = {
   category: Category;
 };
 
+export const CATEGORIES: Category[] = ["celebrities", "animals", "countries"];
+
+export const CATEGORY_LABELS: Record<Category, string> = {
+  celebrities: "Celebrities",
+  animals: "Animals",
+  countries: "Countries",
+};
+
 export const CATEGORY: Category = "animals";
 
 const CANDIDATES: Record<Category, string[]> = {
@@ -92,6 +100,33 @@ Keep answers concise — one or two sentences. Stay in character as the secret i
 Never reveal your reasoning, analysis, or step-by-step thinking. Reply with only the in-character answer.`;
 }
 
+export function buildWinSystemPrompt(secret: string): string {
+  return `The user correctly guessed that you are "${secret}". The 20 Questions game is over.
+
+Congratulate them warmly in one or two short sentences. Confirm that they got it right.
+Do not deny their guess or keep hiding your identity.`;
+}
+
+const GUESS_ALIASES: Record<string, string[]> = {
+  bear: ["곰"],
+  butterfly: ["나비"],
+  crocodile: ["악어"],
+  dolphin: ["돌고래"],
+  eagle: ["독수리", "매"],
+  elephant: ["코끼리"],
+  flamingo: ["플라밍고"],
+  giraffe: ["기린"],
+  kangaroo: ["캥거루"],
+  octopus: ["문어", "오징어"],
+  owl: ["올빼미", "부엉이"],
+  parrot: ["앵무새"],
+  penguin: ["펭귄"],
+  shark: ["상어"],
+  snake: ["뱀"],
+  tiger: ["호랑이", "범"],
+  wolf: ["늑대"],
+};
+
 export function createInitialState(category: Category = CATEGORY): GameState {
   return {
     secret: pickSecret(category),
@@ -128,5 +163,12 @@ export function checkGuess(message: string, secret: string): boolean {
   if (guess === answer) return true;
 
   const escaped = answer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`\\b${escaped}\\b`, "i").test(message);
+  if (new RegExp(`\\b${escaped}\\b`, "i").test(message)) return true;
+
+  const aliases = GUESS_ALIASES[answer] ?? [];
+  return aliases.some(
+    (alias) =>
+      guess === alias.toLowerCase() ||
+      message.toLowerCase().includes(alias.toLowerCase()),
+  );
 }

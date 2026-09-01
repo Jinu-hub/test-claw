@@ -9,13 +9,15 @@ import {
 } from "ai";
 import {
   buildSystemPrompt,
+  buildWinSystemPrompt,
   checkGuess,
   createInitialState,
   getLastUserMessageText,
+  type Category,
   type GameState,
 } from "./game";
 
-export type { GameState } from "./game";
+export type { Category, GameState } from "./game";
 
 export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
   initialState: GameState = createInitialState();
@@ -45,9 +47,13 @@ export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
       binding: this.env.AI,
     });
 
+    const system = this.state.solved
+      ? buildWinSystemPrompt(this.state.secret)
+      : buildSystemPrompt(this.state.secret, this.state.category);
+
     const result = streamText({
       model: workersAi("@cf/zai-org/glm-4.7-flash"),
-      system: buildSystemPrompt(this.state.secret, this.state.category),
+      system,
       messages: await convertToModelMessages(this.messages),
       abortSignal: options?.abortSignal,
       providerOptions: {
@@ -61,8 +67,8 @@ export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
   }
 
   @callable()
-  async newGame() {
-    this.setState(createInitialState(this.state.category));
+  async newGame(category?: Category) {
+    this.setState(createInitialState(category ?? this.state.category));
   }
 }
 
