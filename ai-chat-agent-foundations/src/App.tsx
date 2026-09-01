@@ -26,9 +26,7 @@ function App() {
   const agent = useAgent({
     agent: "TwentyQuestionsAgent",
     onStateUpdate: (state) => {
-      const view = toPublicGameView(state as GameState);
-      setGameView(view);
-      setNextCategory(view.category);
+      setGameView(toPublicGameView(state as GameState));
     },
   });
 
@@ -38,18 +36,25 @@ function App() {
 
   const isStreaming = status === "streaming" || status === "submitted";
   const gameActive = messages.length > 0 && !gameView.solved;
+  const displayCategory =
+    messages.length > 0 ? gameView.category : nextCategory;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isStreaming, gameView.solved]);
 
-  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (gameView.solved || isStreaming) return;
 
     const formData = new FormData(e.currentTarget);
     const message = formData.get("input") as string;
     if (!message?.trim()) return;
+
+    if (messages.length === 0) {
+      await agent.stub.newGame(nextCategory);
+    }
+
     sendMessage({ text: message });
     e.currentTarget.reset();
   };
@@ -188,7 +193,7 @@ function App() {
                 <p className="text-xs text-zinc-500">
                   Category:{" "}
                   <span className="font-medium text-zinc-700">
-                    {CATEGORY_LABELS[gameView.category]}
+                    {CATEGORY_LABELS[displayCategory]}
                   </span>
                 </p>
               </div>
@@ -239,7 +244,7 @@ function App() {
       <footer className="sticky bottom-0 border-t border-zinc-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-2 text-xs text-zinc-500">
           <span className="capitalize">
-            Playing: {CATEGORY_LABELS[gameView.category]}
+            Playing: {CATEGORY_LABELS[displayCategory]}
           </span>
           <div className="flex items-center gap-3">
             {isStreaming && (

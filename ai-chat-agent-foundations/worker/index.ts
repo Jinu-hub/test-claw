@@ -68,8 +68,8 @@ export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
   }
 
   @callable()
-  async newGame(category?: Category) {
-    this.setState(createInitialState(category ?? this.state.category));
+  async newGame(category: Category) {
+    this.setState(createInitialState(category));
   }
 }
 
