@@ -1,3 +1,5 @@
+import type { UIMessage } from "ai";
+
 export type Category = "celebrities" | "animals" | "countries";
 
 export type GameState = {
@@ -97,4 +99,34 @@ export function createInitialState(category: Category = CATEGORY): GameState {
     questionCount: 0,
     category,
   };
+}
+
+export function getLastUserMessageText(messages: UIMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message?.role !== "user") continue;
+
+    const text = message.parts
+      .filter(
+        (part): part is Extract<typeof part, { type: "text" }> =>
+          part.type === "text",
+      )
+      .map((part) => part.text)
+      .join("")
+      .trim();
+
+    if (text) return text;
+  }
+
+  return null;
+}
+
+export function checkGuess(message: string, secret: string): boolean {
+  const guess = message.trim().toLowerCase();
+  const answer = secret.trim().toLowerCase();
+  if (!guess || !answer) return false;
+  if (guess === answer) return true;
+
+  const escaped = answer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`, "i").test(message);
 }

@@ -1,5 +1,5 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
-import { routeAgentRequest } from "agents";
+import { callable, routeAgentRequest } from "agents";
 import { createWorkersAI } from "workers-ai-provider";
 import {
   convertToModelMessages,
@@ -9,9 +9,13 @@ import {
 } from "ai";
 import {
   buildSystemPrompt,
+  checkGuess,
   createInitialState,
+  getLastUserMessageText,
   type GameState,
 } from "./game";
+
+export type { GameState } from "./game";
 
 export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
   initialState: GameState = createInitialState();
@@ -20,6 +24,23 @@ export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
     _onFinish: StreamTextOnFinishCallback<ToolSet>,
     options?: { abortSignal?: AbortSignal },
   ) {
+    const userText = getLastUserMessageText(this.messages);
+
+    if (userText && !this.state.solved) {
+      if (checkGuess(userText, this.state.secret)) {
+        this.setState({
+          ...this.state,
+          solved: true,
+          questionCount: this.state.questionCount + 1,
+        });
+      } else {
+        this.setState({
+          ...this.state,
+          questionCount: this.state.questionCount + 1,
+        });
+      }
+    }
+
     const workersAi = createWorkersAI({
       binding: this.env.AI,
     });
@@ -37,6 +58,11 @@ export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
     });
 
     return result.toUIMessageStreamResponse({ sendReasoning: false });
+  }
+
+  @callable()
+  async newGame() {
+    this.setState(createInitialState(this.state.category));
   }
 }
 
