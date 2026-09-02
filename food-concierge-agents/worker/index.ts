@@ -2,8 +2,12 @@ import { AIChatAgent } from "@cloudflare/ai-chat";
 import { routeAgentRequest } from "agents";
 import { convertToModelMessages, streamText } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
+import { createInitialOrderState, type OrderState } from "./order";
 
-export class FoodConciergeAgent extends AIChatAgent<Env> {
+export type { CartItem, MenuItem, OrderState, Store } from "./order";
+
+export class FoodConciergeAgent extends AIChatAgent<Env, OrderState> {
+  initialState: OrderState = createInitialOrderState();
   async onChatMessage() {
     const workersAi = createWorkersAI({
       binding: this.env.AI,
