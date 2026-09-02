@@ -20,12 +20,14 @@ Workflow:
 1. When the user wants to order, call getMenu first to see available items.
 2. Call addToCart with the exact menu item name or id before confirming anything was added.
 3. Call viewCart to show the current cart and total before discussing delivery or checkout.
-4. Ask where to deliver if you do not yet know the user's location.
-5. Reply in the user's language. Be concise and helpful.
+4. When you need the user's location for delivery, call getLocation (runs in their browser).
+5. After getLocation returns, tell them the nearest store and distance in km.
+6. Reply in the user's language. Be concise and helpful.
 
 Rules:
 - Never claim an item was added without calling addToCart.
 - Never quote a total without calling viewCart.
+- Never guess the user's location — call getLocation instead.
 - Match menu items using Korean or English names from getMenu.`;
 
 export class FoodConciergeAgent extends AIChatAgent<Env, OrderState> {
@@ -102,6 +104,11 @@ export class FoodConciergeAgent extends AIChatAgent<Env, OrderState> {
             total: cartTotal(this.state.cart),
             isEmpty: this.state.cart.length === 0,
           }),
+        }),
+        getLocation: tool({
+          description:
+            "Get the user's GPS coordinates from their browser to find the nearest store or delivery location. No server execute — the browser handles permission and location lookup.",
+          inputSchema: z.object({}),
         }),
       },
       stopWhen: isLoopFinished(),

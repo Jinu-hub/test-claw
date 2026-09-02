@@ -1,6 +1,7 @@
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { useAgent } from "agents/react";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
+import { handleClientToolCall } from "./client-tools";
 
 function App() {
   const agent = useAgent({ agent: "FoodConciergeAgent", name: "default" });
@@ -12,7 +13,12 @@ function App() {
     status,
     stop,
     addToolApprovalResponse,
-  } = useAgentChat({ agent });
+  } = useAgentChat({
+    agent,
+    onToolCall: async ({ toolCall, addToolOutput }) => {
+      handleClientToolCall({ toolCall, addToolOutput });
+    },
+  });
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
