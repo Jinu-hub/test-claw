@@ -47,16 +47,18 @@ function App() {
     e.preventDefault();
     if (gameView.solved || isStreaming) return;
 
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
     const message = formData.get("input") as string;
     if (!message?.trim()) return;
+
+    form.reset();
 
     if (messages.length === 0) {
       await agent.stub.newGame(nextCategory);
     }
 
     sendMessage({ text: message });
-    e.currentTarget.reset();
   };
 
   const handleNewGame = async () => {

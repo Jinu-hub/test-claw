@@ -10,14 +10,22 @@ import {
 import {
   buildSystemPrompt,
   buildWinSystemPrompt,
+  buildWrongGuessSystemPrompt,
   checkGuess,
   createInitialState,
   getLastUserMessageText,
+  isDirectGuess,
+  trimMessagesForContext,
   type Category,
   type GameState,
 } from "./game";
+import { bufferedSanitizeTransform } from "./stream";
 
 export type { Category, GameState, PublicGameView } from "./game";
+
+const MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8" as const;
+const MAX_OUTPUT_TOKENS = 60;
+const MAX_CONTEXT_MESSAGES = 8;
 
 export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
   initialState: GameState = createInitialState();
@@ -28,9 +36,11 @@ export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
   ) {
     const userText = getLastUserMessageText(this.messages);
     const wasSolved = this.state.solved;
+    let correctGuess = false;
 
     if (userText && !wasSolved) {
-      if (checkGuess(userText, this.state.secret)) {
+      correctGuess = checkGuess(userText, this.state.secret);
+      if (correctGuess) {
         this.setState({
           ...this.state,
           solved: true,
@@ -50,18 +60,26 @@ export class TwentyQuestionsAgent extends AIChatAgent<Env, GameState> {
 
     const system = this.state.solved
       ? buildWinSystemPrompt(this.state.secret)
-      : buildSystemPrompt(this.state.secret, this.state.category);
+      : userText && isDirectGuess(userText) && !correctGuess
+        ? buildWrongGuessSystemPrompt(userText)
+        : buildSystemPrompt(this.state.secret, this.state.category);
+
+    const contextMessages = trimMessagesForContext(
+      this.messages,
+      MAX_CONTEXT_MESSAGES,
+    );
+
+    const isWrongDirectGuess =
+      Boolean(userText) && isDirectGuess(userText!) && !correctGuess && !this.state.solved;
 
     const result = streamText({
-      model: workersAi("@cf/zai-org/glm-4.7-flash"),
+      model: workersAi(MODEL),
       system,
-      messages: await convertToModelMessages(this.messages),
+      messages: await convertToModelMessages(contextMessages),
+      maxOutputTokens: isWrongDirectGuess ? 8 : MAX_OUTPUT_TOKENS,
+      temperature: 0,
       abortSignal: options?.abortSignal,
-      providerOptions: {
-        "workers-ai": {
-          enable_thinking: false,
-        },
-      },
+      experimental_transform: bufferedSanitizeTransform(),
     });
 
     return result.toUIMessageStreamResponse({ sendReasoning: false });
