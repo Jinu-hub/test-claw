@@ -1,6 +1,12 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
 import { routeAgentRequest } from "agents";
-import { convertToModelMessages, isLoopFinished, streamText, tool } from "ai";
+import {
+  convertToModelMessages,
+  isLoopFinished,
+  streamText,
+  tool,
+  type UIMessage,
+} from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import z from "zod";
 import {
@@ -11,6 +17,7 @@ import {
   MENU,
   type OrderState,
 } from "./order";
+import { redactSensitiveText } from "./sanitize";
 
 export type { CartItem, MenuItem, OrderState, Store } from "./order";
 
@@ -22,16 +29,34 @@ Workflow:
 3. Call viewCart to show the current cart and total before discussing delivery or checkout.
 4. When you need the user's location for delivery, call getLocation (runs in their browser).
 5. After getLocation returns, tell them the nearest store and distance in km.
-6. Reply in the user's language. Be concise and helpful.
+6. Before checkout, call viewCart and tell the user the total in KRW.
+7. Call placeOrder only when the user wants to confirm — it requires their Approve before the order is placed.
+8. Reply in the user's language. Be concise and helpful.
 
 Rules:
 - Never claim an item was added without calling addToCart.
 - Never quote a total without calling viewCart.
 - Never guess the user's location — call getLocation instead.
+- Never call placeOrder without showing the cart total first.
 - Match menu items using Korean or English names from getMenu.`;
 
 export class FoodConciergeAgent extends AIChatAgent<Env, OrderState> {
   initialState: OrderState = createInitialOrderState();
+
+  protected sanitizeMessageForPersistence(message: UIMessage): UIMessage {
+    return {
+      ...message,
+      parts: message.parts.map((part) => {
+        if (part.type === "text") {
+          return { ...part, text: redactSensitiveText(part.text) };
+        }
+        if (part.type === "reasoning") {
+          return { ...part, text: redactSensitiveText(part.text) };
+        }
+        return part;
+      }),
+    };
+  }
 
   async onChatMessage() {
     const workersAi = createWorkersAI({
@@ -109,6 +134,35 @@ export class FoodConciergeAgent extends AIChatAgent<Env, OrderState> {
           description:
             "Get the user's GPS coordinates from their browser to find the nearest store or delivery location. No server execute — the browser handles permission and location lookup.",
           inputSchema: z.object({}),
+        }),
+        placeOrder: tool({
+          description:
+            "Place the order and complete checkout. Requires user approval before charging. Call viewCart first to confirm the total.",
+          inputSchema: z.object({}),
+          needsApproval: async () => true,
+          execute: async () => {
+            if (this.state.cart.length === 0) {
+              return { success: false, error: "Cart is empty" };
+            }
+
+            const total = cartTotal(this.state.cart);
+            const items = [...this.state.cart];
+            const orderId = crypto.randomUUID();
+
+            this.setState({
+              ...this.state,
+              cart: [],
+              orderId,
+            });
+
+            return {
+              success: true,
+              orderId,
+              total,
+              items,
+              message: "주문이 확정되었습니다! 🍕",
+            };
+          },
         }),
       },
       stopWhen: isLoopFinished(),
