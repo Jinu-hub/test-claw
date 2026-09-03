@@ -157,7 +157,9 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
               });
 
               // 4. 모든 <img>에 alt 속성
-              const images = Array.from(document.querySelectorAll("img"));
+              const imageNodes = document.querySelectorAll("img");
+              const images: Element[] = [];
+              for (let i = 0; i < imageNodes.length; i++) images.push(imageNodes[i]);
               const missingAlt = images.filter(
                 (img) => !img.hasAttribute("alt")
               );
@@ -219,7 +221,8 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
             });
 
             // 점수 계산 (코드에서 직접)
-            const passCount = checks.filter((c) => c.pass).length;
+            const checksArray = Array.isArray(checks) ? checks : Array.from(checks as any);
+            const passCount = checksArray.filter((c: any) => c.pass).length;
             const score = passCount * 12.5;
 
             // 스크린샷 촬영 & R2 저장
