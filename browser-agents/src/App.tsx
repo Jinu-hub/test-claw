@@ -97,12 +97,22 @@ function App() {
         const name = getToolName(part);
         const output =
           part.state === "output-available"
-            ? (part.output as { filename?: string } | undefined)
+            ? (part.output as {
+                filename?: string;
+                screenshotKey?: string;
+                score?: number;
+                checks?: { name: string; pass: boolean; value: string | null }[];
+              } | undefined)
             : undefined;
+
         const screenshotKey =
-          name === "takeScreenshot" && output?.filename
+          (name === "takeScreenshot" && output?.filename)
             ? output.filename
+            : (name === "auditSeo" && output?.screenshotKey)
+            ? output.screenshotKey
             : null;
+
+        const isSeoAudit = name === "auditSeo" && output?.checks;
 
         return (
           <div
@@ -120,18 +130,62 @@ function App() {
                 {JSON.stringify(part.input, null, 2)}
               </pre>
             )}
-            {screenshotKey ? (
+            {isSeoAudit && output ? (
+              <div className="mt-2 space-y-1">
+                <div className="text-sm font-bold">
+                  SEO Score:{" "}
+                  <span
+                    className={
+                      output.score! >= 87.5
+                        ? "text-green-600"
+                        : output.score! >= 50
+                        ? "text-yellow-600"
+                        : "text-red-600"
+                    }
+                  >
+                    {output.score} / 100
+                  </span>
+                </div>
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="text-left text-zinc-500 border-b border-zinc-200">
+                      <th className="py-1 pr-2">Check</th>
+                      <th className="py-1 pr-2">Result</th>
+                      <th className="py-1">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {output.checks!.map((c) => (
+                      <tr key={c.name} className="border-b border-zinc-100">
+                        <td className="py-1 pr-2 font-mono">{c.name}</td>
+                        <td className="py-1 pr-2">
+                          {c.pass ? (
+                            <span className="text-green-600 font-bold">✓ Pass</span>
+                          ) : (
+                            <span className="text-red-500 font-bold">✗ Fail</span>
+                          )}
+                        </td>
+                        <td className="py-1 text-zinc-500 truncate max-w-[200px]">
+                          {c.value ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              part.state === "output-available" && !screenshotKey && (
+                <pre className="mt-1 overflow-x-auto text-zinc-600">
+                  {JSON.stringify(part.output, null, 2)}
+                </pre>
+              )
+            )}
+            {screenshotKey && (
               <img
                 src={`/${screenshotKey}`}
                 alt="screenshot"
                 className="mt-2 w-full rounded border border-zinc-200"
               />
-            ) : (
-              part.state === "output-available" && (
-                <pre className="mt-1 overflow-x-auto text-zinc-600">
-                  {JSON.stringify(part.output, null, 2)}
-                </pre>
-              )
             )}
           </div>
         );
