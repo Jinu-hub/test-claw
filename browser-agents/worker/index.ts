@@ -106,16 +106,64 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
     });
   }
 
+  /** Capture current page to R2 and return the object key. */
+  async saveScreenshotToR2(): Promise<string> {
+    const page = await this.getPage();
+    const buffer = await page.screenshot({ type: "jpeg" });
+    const key = `evidence/${Date.now()}.jpg`;
+    await this.env.FILES.put(key, buffer, {
+      httpMetadata: { contentType: "image/jpeg" },
+    });
+    return key;
+  }
+
+  /** Append an evidence key without incrementing hopCount (for screenshot tool). */
+  appendEvidence(screenshotKey: string) {
+    this.setState({
+      ...this.state,
+      evidence: [...this.state.evidence, screenshotKey],
+    });
+  }
+
   async onChatMessage() {
+    // Fresh hop budget per user turn (avoids stale hopCount from prior explorations)
+    this.resetExploration();
+
     const workersAi = createWorkersAI({ binding: this.env.AI });
 
     const result = streamText({
       model: workersAi("@cf/zai-org/glm-4.7-flash"),
-      system: "You can browse the web and inspect pages.",
+      system: `You are a web exploration agent. You share ONE browser session across tool calls.
+
+## Tools for exploration (prefer these)
+- followLink(href): open a start URL or a link. Counts as 1 hop (max ${MAX_HOPS}). Auto-saves a screenshot.
+- readPage(): read current page text + links, then decide the next action.
+- screenshot(): optional extra capture (does NOT count as a hop).
+- closeBrowser(): end the session when done (saves Browser Run minutes).
+
+Do NOT use navigate or takeScreenshot for exploration Q&A — use followLink / readPage / screenshot instead.
+(auditSeo is only for SEO audit requests.)
+
+## Exploration loop
+1. Start with followLink to the site/home URL the user gave (or a sensible start URL).
+2. Call readPage.
+3. If the page answers the question: stop exploring, write the final report, then closeBrowser.
+4. If not: pick the single most promising link from readPage and followLink it.
+5. Repeat steps 2–4.
+6. Hard limit: at most ${MAX_HOPS} followLink calls. If followLink returns ok:false (max hops), stop immediately, report what you found or that you could not find the answer, then closeBrowser.
+
+## Final answer format (always)
+- The answer (or clearly say you could not find it)
+- The page URL where you found it (or last page checked)
+- The path you took (URLs / link texts in order)
+- hopCount used
+
+Reply in the user's language.`,
       messages: await convertToModelMessages(this.messages),
       tools: {
         navigate: tool({
-          description: "Navigate to a website",
+          description:
+            "Low-level navigate without hop counting or evidence. Prefer followLink for exploration.",
           inputSchema: z.object({
             url: z.url().meta({
               description:
@@ -129,7 +177,8 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
           },
         }),
         closeBrowser: tool({
-          description: "Close the browser session",
+          description:
+            "Close the browser session and reset exploration state. Call this after finishing your answer.",
           inputSchema: z.object({}),
           execute: async () => {
             await this.closeBrowser();
@@ -137,7 +186,8 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
           },
         }),
         takeScreenshot: tool({
-          description: "Take a screenshot of the page",
+          description:
+            "Legacy screenshot tool. Prefer screenshot() for exploration evidence.",
           inputSchema: z.object({}),
           execute: async () => {
             const page = await this.getPage();
@@ -149,6 +199,105 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
               },
             });
             return { ok: true, filename: key };
+          },
+        }),
+        readPage: tool({
+          description:
+            "Read the current page: return visible text and all links so you can decide where to go next. Call this after followLink.",
+          inputSchema: z.object({}),
+          execute: async () => {
+            const page = await this.getPage();
+            const data = await page.evaluate(() => {
+              const MAX_TEXT = 8000;
+              const MAX_LINKS = 80;
+
+              const rawText = document.body?.innerText ?? "";
+              const text =
+                rawText.length > MAX_TEXT
+                  ? rawText.slice(0, MAX_TEXT) + "\n…[truncated]"
+                  : rawText;
+
+              const anchors = document.querySelectorAll("a[href]");
+              const links: { text: string; href: string }[] = [];
+              const seen = new Set<string>();
+
+              for (let i = 0; i < anchors.length && links.length < MAX_LINKS; i++) {
+                const a = anchors[i] as HTMLAnchorElement;
+                const href = a.href;
+                if (!href || href.startsWith("javascript:")) continue;
+                if (seen.has(href)) continue;
+                seen.add(href);
+                const linkText = (a.innerText || a.getAttribute("aria-label") || "")
+                  .trim()
+                  .replace(/\s+/g, " ")
+                  .slice(0, 120);
+                links.push({ text: linkText || href, href });
+              }
+
+              return {
+                url: location.href,
+                title: document.title,
+                text,
+                links,
+              };
+            });
+
+            return {
+              ...data,
+              hopCount: this.state.hopCount,
+              maxHops: MAX_HOPS,
+            };
+          },
+        }),
+        followLink: tool({
+          description:
+            "Navigate to a URL (start page or a link from readPage). Counts as one hop (max 5). Automatically saves a screenshot to evidence after each move. Prefer this over navigate.",
+          inputSchema: z.object({
+            href: z.string().meta({
+              description: "Absolute URL to navigate to",
+            }),
+          }),
+          execute: async ({ href }) => {
+            if (!this.canHop()) {
+              return {
+                ok: false as const,
+                reason: `max hops reached (${MAX_HOPS}). Stop exploring and report what you found (or that you could not find the answer).`,
+                hopCount: this.state.hopCount,
+                maxHops: MAX_HOPS,
+                evidence: this.state.evidence,
+              };
+            }
+
+            const page = await this.getPage();
+            await page.goto(href, { waitUntil: "domcontentloaded" });
+
+            const screenshotKey = await this.saveScreenshotToR2();
+            this.recordHop(screenshotKey);
+
+            return {
+              ok: true as const,
+              url: page.url(),
+              title: await page.title(),
+              screenshotKey,
+              hopCount: this.state.hopCount,
+              maxHops: MAX_HOPS,
+              hopsRemaining: MAX_HOPS - this.state.hopCount,
+            };
+          },
+        }),
+        screenshot: tool({
+          description:
+            "Capture the current page to R2 evidence on demand (does not count as a hop).",
+          inputSchema: z.object({}),
+          execute: async () => {
+            const screenshotKey = await this.saveScreenshotToR2();
+            this.appendEvidence(screenshotKey);
+            return {
+              ok: true as const,
+              screenshotKey,
+              hopCount: this.state.hopCount,
+              evidence: this.state.evidence,
+            };
           },
         }),
         auditSeo: tool({
