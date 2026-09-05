@@ -1,5 +1,5 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
-import { routeAgentRequest } from "agents";
+import { callable, routeAgentRequest } from "agents";
 import { convertToModelMessages, isLoopFinished, streamText, tool } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import puppeteer, { type Page, type Browser } from "@cloudflare/puppeteer";
@@ -10,6 +10,8 @@ export const MAX_HOPS = 5;
 
 export type BrowserAgentState = {
   liveUrl: string | null;
+  /** Why Live View is unavailable (missing secrets, API error, etc.) */
+  liveViewError: string | null;
   /** R2 keys for screenshots, in visit order */
   evidence: string[];
   /** Number of followLink navigations in the current exploration */
@@ -19,6 +21,7 @@ export type BrowserAgentState = {
 export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
   initialState: BrowserAgentState = {
     liveUrl: null,
+    liveViewError: null,
     evidence: [],
     hopCount: 0,
   };
@@ -59,51 +62,117 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
       width: 1280,
       height: 720,
     });
-    await this.getLiveViewUrl();
+    // Live View must not block browsing if secrets/API fail
+    await this.getLiveViewUrl().catch(() => {});
     return this.page;
   }
 
   async getLiveViewUrl() {
     if (!this.browser) return;
 
+    const accountId = this.env.ACCOUNT_ID;
+    const apiToken = this.env.API_TOKEN;
+    if (!accountId || !apiToken || accountId.includes("yyyy") || apiToken.includes("xxxx")) {
+      this.setState({
+        ...this.state,
+        liveUrl: null,
+        liveViewError:
+          "ACCOUNT_ID / API_TOKEN secrets are missing or still placeholders. Set them with: wrangler secret put ACCOUNT_ID && wrangler secret put API_TOKEN",
+      });
+      return;
+    }
+
     const sessionId = this.browser.sessionId();
 
-    const res = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${this.env.ACCOUNT_ID}/browser-rendering/devtools/browser/${sessionId}/json/list`,
-      {
-        headers: {
-          Authorization: `Bearer ${this.env.API_TOKEN}`,
+    try {
+      const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${accountId}/browser-rendering/devtools/browser/${sessionId}/json/list`,
+        {
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+          },
         },
-      },
-    );
+      );
 
-    const data = (await res.json()) as {
-      type: string;
-      devtoolsFrontendUrl: string;
-    }[];
+      const data = (await res.json()) as
+        | { type: string; devtoolsFrontendUrl: string }[]
+        | { success?: boolean; errors?: { message: string }[]; result?: unknown };
 
-    const target = data.find((t) => t.type === "page");
-    if (!target) {
-      throw new Error("No page target found for DevTools URL");
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray((data as { result?: unknown }).result)
+          ? ((data as { result: { type: string; devtoolsFrontendUrl: string }[] }).result)
+          : null;
+
+      if (!list) {
+        const msg = !Array.isArray(data)
+          ? ((data as { errors?: { message: string }[] }).errors?.[0]?.message ??
+            `Live View API error (HTTP ${res.status})`)
+          : "Unexpected Live View API response";
+        this.setState({
+          ...this.state,
+          liveUrl: null,
+          liveViewError: msg,
+        });
+        return;
+      }
+
+      const target = list.find((t) => t.type === "page");
+      if (!target?.devtoolsFrontendUrl) {
+        this.setState({
+          ...this.state,
+          liveUrl: null,
+          liveViewError: "No page target found for DevTools Live View URL",
+        });
+        return;
+      }
+
+      const liveUrl = new URL(target.devtoolsFrontendUrl);
+      liveUrl.searchParams.set("mode", "tab");
+      this.setState({
+        ...this.state,
+        liveUrl: liveUrl.toString(),
+        liveViewError: null,
+      });
+    } catch (err) {
+      this.setState({
+        ...this.state,
+        liveUrl: null,
+        liveViewError:
+          err instanceof Error ? err.message : "Failed to fetch Live View URL",
+      });
     }
-    const url = target.devtoolsFrontendUrl;
-    const liveUrl = new URL(url);
-    liveUrl.searchParams.set("mode", "tab");
-    this.setState({
-      ...this.state,
-      liveUrl: liveUrl.toString(),
-    });
   }
 
   async closeBrowser() {
     await this.browser?.close();
     this.browser = null;
     this.page = null;
+    // Keep evidence/hopCount so the UI can show the trail until the next user turn
+    this.setState({
+      ...this.state,
+      liveUrl: null,
+      liveViewError: this.state.liveViewError,
+    });
+  }
+
+  /** Clear chat-side session UI state: close browser and wipe evidence/hops. */
+  @callable()
+  async clearSession() {
     this.setState({
       liveUrl: null,
+      liveViewError: null,
       evidence: [],
       hopCount: 0,
     });
+    try {
+      await this.browser?.close();
+    } catch {
+      // already closed
+    }
+    this.browser = null;
+    this.page = null;
+    return { ok: true as const };
   }
 
   /** Capture current page to R2 and return the object key. */
@@ -435,17 +504,27 @@ Reply in the user's language.`,
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname.startsWith("/screenshots")) {
+
+    // Proxy R2 objects for screenshots / exploration evidence
+    // pathname "/evidence/123.jpg" → R2 key "evidence/123.jpg"
+    if (
+      url.pathname.startsWith("/screenshots/") ||
+      url.pathname.startsWith("/evidence/")
+    ) {
       const key = url.pathname.slice(1);
       const file = await env.FILES.get(key);
       if (file) {
         return new Response(file.body, {
           headers: {
-            "Content-Type": file.httpMetadata?.contentType ?? "image/png",
+            "Content-Type":
+              file.httpMetadata?.contentType ?? "image/jpeg",
+            "Cache-Control": "public, max-age=3600",
           },
         });
       }
+      return new Response("Not found", { status: 404 });
     }
+
     return (
       (await routeAgentRequest(request, env)) ??
       new Response(null, { status: 404 })

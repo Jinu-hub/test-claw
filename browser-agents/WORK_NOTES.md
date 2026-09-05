@@ -12,9 +12,9 @@
 | 1 | State 확장 + hop 가드 인프라 | ✅ done |
 | 2 | `readPage` / `followLink` / `screenshot` 도구 | ✅ done |
 | 3 | 탐색 루프 시스템 프롬프트 | ✅ done |
-| 4 | `/evidence/<key>` R2 프록시 | ⏳ pending |
-| 5 | Live View + Evidence UI | ⏳ pending |
-| 6 | 배포 + 테스트 | ⏳ pending |
+| 4 | `/evidence/<key>` R2 프록시 | ✅ done |
+| 5 | Live View + Evidence UI | ✅ done |
+| 6 | 배포 + 테스트 | ✅ deployed (수동 E2E 대기) |
 
 ---
 
@@ -148,7 +148,113 @@
 
 ---
 
-## Phase 4 — `/evidence/<key>` 프록시 (다음)
+## Phase 4 — `/evidence/<key>` R2 프록시
 
-- [ ] Worker `fetch`에 `/evidence/*` R2 서빙
-- [ ] `wrangler.jsonc` `run_worker_first`에 `/evidence/*` 추가
+### 구현 내용
+
+1. **Worker `fetch`**
+   - `/evidence/*` 및 `/screenshots/*` → R2 `FILES.get(pathname.slice(1))`
+   - 예: `/evidence/1710000000.jpg` → key `evidence/1710000000.jpg`
+   - 없으면 404 (SPA `index.html`로 떨어지지 않음)
+   - `Content-Type` + `Cache-Control`
+
+2. **`wrangler.jsonc`**
+   - `run_worker_first`에 `"/evidence/*"` 추가  
+     (어제 `/agents/*`와 같은 SPA 가로채기 방지)
+
+### Phase 4 테스트 체크리스트
+
+| # | 시나리오 | 기대 | 결과 |
+|---|----------|------|------|
+| 1 | 탐색 후 `screenshotKey`로 `/evidence/...` 열기 | JPEG 이미지 | ⏳ |
+| 2 | 없는 key | 404, HTML 아님 | ⏳ |
+| 3 | SPA가 `/evidence`를 가로채지 않음 | Worker 먼저 실행 | ⏳ |
+
+> UI Evidence 타임라인은 Phase 5. 지금은 URL/Network로 검증.
+
+### 변경 파일
+
+- `worker/index.ts`
+- `wrangler.jsonc`
+- `WORK_NOTES.md`
+
+### 완료 시각
+
+- 2026-09-05 — Phase 4 구현 완료
+
+---
+
+## Phase 5 — Live View + Evidence UI
+
+### 구현 내용
+
+1. **레이아웃** — `max-w-6xl` 2컬럼 (채팅 | Live View + Evidence)
+2. **Live View** — `agent.state.liveUrl` iframe, 없으면 idle 안내 (배포 Worker 필요)
+3. **Evidence 패널** — `agent.state.evidence` 순서대로 Step N + 이미지 + 링크
+4. **도구 UI**
+   - `followLink` / `screenshot` / `auditSeo` / `takeScreenshot` → 이미지
+   - `readPage` → URL / title / link count / 텍스트 미리보기
+   - hop 배지 표시
+5. **`closeBrowser`** — evidence/hopCount 유지 (다음 유저 턴의 `resetExploration`에서 초기화)  
+   → 탐색 종료 후에도 타임라인 확인 가능
+
+### Phase 5 테스트 체크리스트
+
+| # | 시나리오 | 기대 | 결과 |
+|---|----------|------|------|
+| 1 | 탐색 중 Live View | (배포 시) iframe에 탭 표시 | ⏳ |
+| 2 | followLink 후 Evidence | Step 순서대로 스크린샷 | ⏳ |
+| 3 | closeBrowser 이후 | Evidence 패널에 기록 유지 | ⏳ |
+| 4 | 다음 질문 전송 | evidence/hop 리셋 후 새 탐색 | ⏳ |
+
+### 변경 파일
+
+- `src/App.tsx`
+- `worker/index.ts` (`closeBrowser` evidence 유지)
+- `WORK_NOTES.md`
+
+### 완료 시각
+
+- 2026-09-05 — Phase 5 구현 완료
+
+---
+
+## Phase 6 — 배포 + 테스트
+
+### 배포
+
+- `npm run build` ✅
+- `npx wrangler deploy` ✅
+- URL: https://browser-agents.jinu30dev.workers.dev
+- Version: `444c3e00-7df7-4ac3-8991-5b8f41e02945`
+
+### E2E 테스트 체크리스트 (직접 확인)
+
+| # | 시나리오 | 기대 | 결과 |
+|---|----------|------|------|
+| 1 | “nomadcoders.co에서 가장 저렴한 강의를 찾아줘” | followLink 루프 + 답/경로 | ⏳ |
+| 2 | Live View | iframe에 실시간 탭 | ⏳ |
+| 3 | Evidence | hop 순서 스크린샷 | ⏳ |
+| 4 | 없는 정보 질문 | ≤5 hop 후 종료 | ⏳ |
+| 5 | closeBrowser 후 Evidence 유지 | 타임라인 보임 | ⏳ |
+
+### Live View 이슈 (2026-09-05)
+
+**증상**: 탐색/Evidence는 되는데 Live View가 idle
+
+**원인**
+1. 배포 Worker에 `ACCOUNT_ID` / `API_TOKEN` 시크릿이 없음 (`wrangler secret list` → `[]`)
+2. `.dev.vars`가 placeholder (`xxxxxxxx` / `yyyyyyyy`)
+3. 탐색 종료 `closeBrowser` 후 `liveUrl=null` → 끝에서는 원래 idle
+
+**수정**
+- Live View 실패가 browsing을 막지 않도록 try/catch
+- `liveViewError` state + UI 안내
+- 종료 후 “Session ended / see Evidence” 메시지
+
+### Clear 버튼 (2026-09-05)
+
+- `clearHistory()`만 호출하면 Evidence state가 남음
+- `agent.stub.clearSession()` 추가: browser 종료 + evidence/hopCount/liveUrl 전부 초기화
+- Clear → `clearSession()` + `clearHistory()`
+- **버그 수정**: `@callable()` 없이 stub RPC가 호출되지 않아 Evidence가 안 지워짐 → decorator 추가
