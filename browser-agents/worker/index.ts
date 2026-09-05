@@ -5,16 +5,50 @@ import { createWorkersAI } from "workers-ai-provider";
 import puppeteer, { type Page, type Browser } from "@cloudflare/puppeteer";
 import z from "zod";
 
+/** Max navigation hops per exploration session (enforced in code, not by the model). */
+export const MAX_HOPS = 5;
+
 export type BrowserAgentState = {
   liveUrl: string | null;
+  /** R2 keys for screenshots, in visit order */
+  evidence: string[];
+  /** Number of followLink navigations in the current exploration */
+  hopCount: number;
 };
+
 export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
-  initialState = {
+  initialState: BrowserAgentState = {
     liveUrl: null,
+    evidence: [],
+    hopCount: 0,
   };
 
   browser: Browser | null = null;
   page: Page | null = null;
+
+  /** Whether another followLink is allowed. */
+  canHop(): boolean {
+    return this.state.hopCount < MAX_HOPS;
+  }
+
+  /** Record a successful navigation: bump hopCount and append evidence key. */
+  recordHop(screenshotKey: string) {
+    this.setState({
+      ...this.state,
+      hopCount: this.state.hopCount + 1,
+      evidence: [...this.state.evidence, screenshotKey],
+    });
+  }
+
+  /** Clear hop/evidence for a new exploration (keeps liveUrl if browser still open). */
+  resetExploration() {
+    this.setState({
+      ...this.state,
+      hopCount: 0,
+      evidence: [],
+    });
+  }
+
   async getPage() {
     if (this.page && this.browser?.connected) return this.page;
     this.browser = await puppeteer.launch(this.env.BROWSER, {
@@ -56,6 +90,7 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
     const liveUrl = new URL(url);
     liveUrl.searchParams.set("mode", "tab");
     this.setState({
+      ...this.state,
       liveUrl: liveUrl.toString(),
     });
   }
@@ -64,6 +99,11 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
     await this.browser?.close();
     this.browser = null;
     this.page = null;
+    this.setState({
+      liveUrl: null,
+      evidence: [],
+      hopCount: 0,
+    });
   }
 
   async onChatMessage() {
