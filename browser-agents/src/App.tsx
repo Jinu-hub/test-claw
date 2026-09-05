@@ -41,6 +41,7 @@ function App() {
   const liveViewError = agent?.state?.liveViewError ?? null;
   const evidence = agent?.state?.evidence ?? [];
   const hopCount = agent?.state?.hopCount ?? 0;
+  const explorationId = agent?.state?.explorationId ?? null;
 
   const handleClear = async () => {
     try {
@@ -371,13 +372,16 @@ function App() {
           </section>
 
           <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
-            <div className="flex items-center justify-between border-b border-zinc-100 px-3 py-2">
+            <div className="flex items-center justify-between gap-2 border-b border-zinc-100 px-3 py-2">
               <h2 className="text-xs font-semibold tracking-wide text-zinc-700">
                 Evidence
               </h2>
-              <span className="text-[10px] text-zinc-400">
+              <span className="truncate text-[10px] text-zinc-400">
                 hops {hopCount} · {evidence.length} shot
                 {evidence.length === 1 ? "" : "s"}
+                {explorationId
+                  ? ` · ${explorationId.slice(0, 8)}…`
+                  : ""}
               </span>
             </div>
             {evidence.length === 0 ? (

@@ -252,9 +252,9 @@
 - `liveViewError` state + UI 안내
 - 종료 후 “Session ended / see Evidence” 메시지
 
-### Clear 버튼 (2026-09-05)
+### Evidence 세션별 저장 (2026-09-05)
 
-- `clearHistory()`만 호출하면 Evidence state가 남음
-- `agent.stub.clearSession()` 추가: browser 종료 + evidence/hopCount/liveUrl 전부 초기화
-- Clear → `clearSession()` + `clearHistory()`
-- **버그 수정**: `@callable()` 없이 stub RPC가 호출되지 않아 Evidence가 안 지워짐 → decorator 추가
+- 키 형식: `evidence/{explorationId}/{timestamp}.jpg`
+- `resetExploration()` / 유저 턴 시작 시 새 `explorationId` (UUID) 발급
+- `clearSession()` → 해당 prefix(+ evidence keys) R2 삭제 후 state 초기화
+- UI Evidence 헤더에 explorationId 앞 8자 표시

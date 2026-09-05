@@ -12,6 +12,8 @@ export type BrowserAgentState = {
   liveUrl: string | null;
   /** Why Live View is unavailable (missing secrets, API error, etc.) */
   liveViewError: string | null;
+  /** Groups R2 evidence under evidence/{explorationId}/… */
+  explorationId: string | null;
   /** R2 keys for screenshots, in visit order */
   evidence: string[];
   /** Number of followLink navigations in the current exploration */
@@ -22,6 +24,7 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
   initialState: BrowserAgentState = {
     liveUrl: null,
     liveViewError: null,
+    explorationId: null,
     evidence: [],
     hopCount: 0,
   };
@@ -43,13 +46,50 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
     });
   }
 
-  /** Clear hop/evidence for a new exploration (keeps liveUrl if browser still open). */
+  /** Start a new exploration folder + hop budget (keeps liveUrl if browser still open). */
   resetExploration() {
     this.setState({
       ...this.state,
+      explorationId: crypto.randomUUID(),
       hopCount: 0,
       evidence: [],
     });
+  }
+
+  /** Ensure an explorationId exists (for screenshots before resetExploration). */
+  ensureExplorationId(): string {
+    if (this.state.explorationId) return this.state.explorationId;
+    const explorationId = crypto.randomUUID();
+    this.setState({
+      ...this.state,
+      explorationId,
+    });
+    return explorationId;
+  }
+
+  /** Delete all R2 objects for an exploration prefix (and any listed evidence keys). */
+  async deleteEvidenceObjects(explorationId: string | null, keys: string[]) {
+    const toDelete = new Set(keys);
+
+    if (explorationId) {
+      const prefix = `evidence/${explorationId}/`;
+      let cursor: string | undefined;
+      do {
+        const listed = await this.env.FILES.list({
+          prefix,
+          cursor,
+          limit: 1000,
+        });
+        for (const obj of listed.objects) {
+          toDelete.add(obj.key);
+        }
+        cursor = listed.truncated ? listed.cursor : undefined;
+      } while (cursor);
+    }
+
+    await Promise.all(
+      [...toDelete].map((key) => this.env.FILES.delete(key).catch(() => {})),
+    );
   }
 
   async getPage() {
@@ -156,15 +196,12 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
     });
   }
 
-  /** Clear chat-side session UI state: close browser and wipe evidence/hops. */
+  /** Clear chat-side session UI state: close browser, wipe R2 evidence prefix, reset state. */
   @callable()
   async clearSession() {
-    this.setState({
-      liveUrl: null,
-      liveViewError: null,
-      evidence: [],
-      hopCount: 0,
-    });
+    const { explorationId, evidence } = this.state;
+    await this.deleteEvidenceObjects(explorationId, evidence);
+
     try {
       await this.browser?.close();
     } catch {
@@ -172,14 +209,23 @@ export class BrowserAgent extends AIChatAgent<Env, BrowserAgentState> {
     }
     this.browser = null;
     this.page = null;
+
+    this.setState({
+      liveUrl: null,
+      liveViewError: null,
+      explorationId: null,
+      evidence: [],
+      hopCount: 0,
+    });
     return { ok: true as const };
   }
 
-  /** Capture current page to R2 and return the object key. */
+  /** Capture current page to R2 under evidence/{explorationId}/… */
   async saveScreenshotToR2(): Promise<string> {
     const page = await this.getPage();
     const buffer = await page.screenshot({ type: "jpeg" });
-    const key = `evidence/${Date.now()}.jpg`;
+    const explorationId = this.ensureExplorationId();
+    const key = `evidence/${explorationId}/${Date.now()}.jpg`;
     await this.env.FILES.put(key, buffer, {
       httpMetadata: { contentType: "image/jpeg" },
     });
@@ -506,7 +552,7 @@ export default {
     const url = new URL(request.url);
 
     // Proxy R2 objects for screenshots / exploration evidence
-    // pathname "/evidence/123.jpg" → R2 key "evidence/123.jpg"
+    // pathname "/evidence/{id}/123.jpg" → R2 key "evidence/{id}/123.jpg"
     if (
       url.pathname.startsWith("/screenshots/") ||
       url.pathname.startsWith("/evidence/")
