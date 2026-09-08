@@ -9,13 +9,15 @@
 - [x] `chunkText(markdown)` — ~800자 단위 분할
 - [x] `@callable debugFetchMarkdown` + UI "Test example.com" 버튼
 - **체크포인트:** UI에서 `Test example.com` → title·chunkCount·preview가 나오면 **OK**
-- **상태:** 구현 완료 → 사용자 OK 대기
+- **상태:** OK ✓
 
 ## Phase 2 — `saveUrl` 도구
-- [ ] `/markdown` → chunk → `embedMany` → Vectorize upsert + SQL 저장
-- [ ] `sources`에 URL/제목/시각 기록
-- [ ] 에이전트 도구로 노출 (채팅에서 URL 붙여넣으면 호출)
-- **체크포인트:** URL 1개 저장 후 `chunks`/`sources`에 행이 생기고 Vectorize에 벡터가 들어감
+- [x] `/markdown` → chunk → `embedMany` → Vectorize upsert + SQL 저장
+- [x] `sources`에 URL/제목/시각 기록
+- [x] 에이전트 도구로 노출 (채팅에서 URL 붙여넣으면 호출)
+- [x] `debugInspectMemory` + UI "Save example.com" 체크포인트
+- **체크포인트:** UI에서 `Save example.com` → `saved.chunkCount ≥ 1` 이고 `memory.sources`에 URL이 있으면 **OK**
+- **상태:** 구현 완료 → 사용자 OK 대기
 
 ## Phase 3 — `recall` + 시스템 프롬프트
 - [ ] 질문 임베딩 → `query({ topK: 5 })` → SQL에서 텍스트 조회

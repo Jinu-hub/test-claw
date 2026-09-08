@@ -144,6 +144,81 @@ export class RAGAgent extends AIChatAgent<Env> {
     };
   }
 
+  /** Remove prior chunks/vectors for a source URL so re-saves stay consistent. */
+  async forgetSource(url: string) {
+    const rows = this
+      .sql<{ id: string }>`SELECT id FROM chunks WHERE source = ${url}`;
+    const ids = rows.map((row) => row.id);
+    if (ids.length > 0) {
+      await this.env.VECTORIZE.deleteByIds(ids);
+      void this.sql`DELETE FROM chunks WHERE source = ${url}`;
+    }
+    void this.sql`DELETE FROM sources WHERE url = ${url}`;
+  }
+
+  /**
+   * Fetch page markdown, chunk (~800 chars), embed, upsert Vectorize + SQL.
+   * Vectors and chunk text share the same id.
+   */
+  @callable()
+  async saveUrl(url: string) {
+    const fetched = await this.fetchMarkdown(url);
+    const chunks = this.chunkText(fetched.markdown);
+    if (chunks.length === 0) {
+      throw new Error(`No markdown content extracted from ${url}`);
+    }
+
+    // Clear both the requested URL and the final URL (redirects).
+    await this.forgetSource(url);
+    if (fetched.url !== url) await this.forgetSource(fetched.url);
+
+    const embeddings = await this.embedChunks(chunks);
+    const vectors = chunks.map((chunk, index) => {
+      const id = crypto.randomUUID();
+      void this.sql`
+        INSERT INTO chunks (id, source, text)
+        VALUES (${id}, ${fetched.url}, ${chunk})
+      `;
+      return {
+        id,
+        values: embeddings[index],
+        metadata: { source: fetched.url, title: fetched.title },
+      };
+    });
+    await this.env.VECTORIZE.upsert(vectors);
+
+    const savedAt = new Date().toISOString();
+    void this.sql`
+      INSERT INTO sources (url, title, saved_at)
+      VALUES (${fetched.url}, ${fetched.title}, ${savedAt})
+    `;
+
+    return {
+      url: fetched.url,
+      title: fetched.title,
+      chunkCount: chunks.length,
+      savedAt,
+    };
+  }
+
+  /** Phase 2 checkpoint — confirm SQL rows after saveUrl. */
+  @callable()
+  async debugInspectMemory() {
+    const sources = this.sql<{
+      url: string;
+      title: string;
+      saved_at: string;
+    }>`SELECT url, title, saved_at FROM sources ORDER BY saved_at DESC`;
+    const [{ count: chunkCount } = { count: 0 }] = this.sql<{
+      count: number;
+    }>`SELECT COUNT(*) AS count FROM chunks`;
+    return {
+      sourceCount: sources.length,
+      chunkCount,
+      sources,
+    };
+  }
+
   async convert(fileName: string, buffer: ArrayBuffer, fileType: string) {
     const result = await this.env.AI.toMarkdown({
       name: fileName,
@@ -183,10 +258,24 @@ export class RAGAgent extends AIChatAgent<Env> {
     const workersAi = createWorkersAI({ binding: this.env.AI });
     const result = streamText({
       model: workersAi("@cf/zai-org/glm-4.7-flash"),
-      system:
-        "You answer questions using ingested documents. Use `recall` to look up information before answering questions about ingested content.",
+      system: [
+        "You are a second-brain assistant that remembers web pages the user saves.",
+        "When the user pastes or shares a URL to remember, call `saveUrl` with that URL.",
+        "Use `recall` to look up saved content before answering questions about it.",
+      ].join(" "),
       messages: await convertToModelMessages(this.messages),
       tools: {
+        saveUrl: tool({
+          description:
+            "Fetch a webpage via Browser Rendering /markdown, chunk it, embed it, and store it in memory (Vectorize + SQL). Call when the user wants to save/remember a URL.",
+          inputSchema: z.object({
+            url: z
+              .string()
+              .url()
+              .meta({ description: "Absolute http(s) URL to save." }),
+          }),
+          execute: async ({ url }) => this.saveUrl(url),
+        }),
         recall: tool({
           description:
             "Search ingested documents for chunks relevant to a query. Call this before answering questions about previously-saved content.",
