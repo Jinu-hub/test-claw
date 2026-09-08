@@ -219,6 +219,45 @@ export class RAGAgent extends AIChatAgent<Env> {
     };
   }
 
+  /**
+   * Embed the question, query Vectorize (topK: 5), then load chunk text from SQL.
+   * Each hit includes the source URL for citation.
+   */
+  @callable()
+  async recall(question: string) {
+    const { embedding } = await embed({
+      model: this.embedder(),
+      value: question,
+    });
+    const { matches } = await this.env.VECTORIZE.query(embedding, {
+      topK: 5,
+    });
+
+    const chunks = matches.flatMap((match) => {
+      const [row] = this.sql<{
+        id: string;
+        source: string;
+        text: string;
+      }>`SELECT id, source, text FROM chunks WHERE id = ${match.id}`;
+      if (!row) return [];
+      return [
+        {
+          id: row.id,
+          sourceUrl: row.source,
+          text: row.text,
+          score: match.score,
+        },
+      ];
+    });
+
+    return {
+      question,
+      matchCount: chunks.length,
+      chunks,
+      sourceUrls: [...new Set(chunks.map((c) => c.sourceUrl))],
+    };
+  }
+
   async convert(fileName: string, buffer: ArrayBuffer, fileType: string) {
     const result = await this.env.AI.toMarkdown({
       name: fileName,
@@ -261,7 +300,9 @@ export class RAGAgent extends AIChatAgent<Env> {
       system: [
         "You are a second-brain assistant that remembers web pages the user saves.",
         "When the user pastes or shares a URL to remember, call `saveUrl` with that URL.",
-        "Use `recall` to look up saved content before answering questions about it.",
+        "Before answering questions about saved content, call `recall` and base your answer only on the returned chunks.",
+        "Always cite the source URL for any fact you use (include the full URL in the answer).",
+        'If recall returns no relevant chunks, or the answer is not supported by those chunks, say you do not have a source for that content (e.g. "해당 내용의 출처를 가지고 있지 않다"). Do not invent facts or URLs.',
       ].join(" "),
       messages: await convertToModelMessages(this.messages),
       tools: {
@@ -278,24 +319,13 @@ export class RAGAgent extends AIChatAgent<Env> {
         }),
         recall: tool({
           description:
-            "Search ingested documents for chunks relevant to a query. Call this before answering questions about previously-saved content.",
+            "Search saved pages for the top 5 chunks relevant to a question. Returns chunk text plus source URL. Call before answering questions about remembered content.",
           inputSchema: z.object({
-            query: z.string().meta({ description: "What to look up." }),
+            question: z
+              .string()
+              .meta({ description: "The user question to look up." }),
           }),
-          execute: async ({ query }) => {
-            const { embedding } = await embed({
-              model: this.embedder(),
-              value: query,
-            });
-            const { matches } = await this.env.VECTORIZE.query(embedding, {
-              topK: 5,
-            });
-            return matches.map((match) => {
-              const [result] = this
-                .sql`SELECT * FROM chunks WHERE id = ${match.id}`;
-              return result;
-            });
-          },
+          execute: async ({ question }) => this.recall(question),
         }),
       },
 
