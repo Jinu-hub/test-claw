@@ -37,9 +37,15 @@
 - **체크포인트:**
   1. `List sources` → url / title / saved_at 목록
   2. 채팅 “내가 저장한 게 뭐가 있지?” → `listSources` 호출 후 전부
-- **상태:** 구현 완료 → 사용자 OK 대기
+- **상태:** OK ✓
 
 ## Phase 5 — 정리 + E2E
-- [ ] PDF 업로드/`ingestPdf`/`AI.toMarkdown`/`/api/upload`/R2 의존 제거 (과제: PDF·스크래핑 금지)
-- [ ] UI에서 PDF 업로드 제거, 채팅 중심 Second Brain UX
-- **체크포인트:** 서로 다른 주제 글 3개 저장 → 특정 글 질문(출처 URL) → 목록 3개 → 미저장 내용 거절
+- [x] PDF 업로드/`ingestPdf`/`AI.toMarkdown`/`/api/upload`/R2 의존 제거
+- [x] UI에서 PDF 업로드 제거, 채팅 중심 Second Brain UX
+- [x] 디버그 callable 정리 (`debugFetchMarkdown` / `debugInspectMemory`)
+- **체크포인트:**
+  1. 서로 다른 주제 글 3개 URL 저장
+  2. 특정 글 질문 → 해당 URL 출처
+  3. `내가 저장한 게 뭐가 있지?` → 출처 3개
+  4. 미저장 내용 → 출처 없음 고지
+- **상태:** OK ✓ (전체 과제 완료)

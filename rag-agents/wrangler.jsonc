@@ -41,13 +41,6 @@
 			"tag": "1"
 		}
 	],
-	"r2_buckets": [
-		{
-			"bucket_name": "rag-agents-bucket",
-			"binding": "FILES",
-			"remote": true
-		}
-	],
 	"vectorize": [
 		{
 			"binding": "VECTORIZE",

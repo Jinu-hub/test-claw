@@ -1,19 +1,17 @@
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { useAgent } from "agents/react";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 function App() {
-  const [ingesting, setIngesting] = useState<string | null>(null);
   const [checkpointResult, setCheckpointResult] = useState<string | null>(
     null,
   );
   const [checkpointBusy, setCheckpointBusy] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const agent = useAgent({ agent: "RAGAgent" });
 
-  const runPhase4Checkpoint = async () => {
+  const runE2eSnapshot = async () => {
     setCheckpointBusy(true);
     setCheckpointResult(null);
     try {
@@ -23,8 +21,12 @@ function App() {
           {
             sourceCount: Array.isArray(sources) ? sources.length : 0,
             sources,
-            chatHint:
-              'Ask in chat: "내가 저장한 게 뭐가 있지?" — agent should call listSources and list all.',
+            checklist: [
+              "1. Chat에 서로 다른 주제 URL 3개 붙여넣어 저장 (saveUrl)",
+              "2. 특정 글에만 있는 내용 질문 → 답에 그 URL 출처",
+              '3. "내가 저장한 게 뭐가 있지?" → 출처 3개 전부',
+              '4. 저장 안 한 내용 질문 → "출처를 가지고 있지 않다"',
+            ],
           },
           null,
           2,
@@ -32,7 +34,7 @@ function App() {
       );
     } catch (err) {
       setCheckpointResult(
-        err instanceof Error ? err.message : "Phase 4 checkpoint failed",
+        err instanceof Error ? err.message : "E2E snapshot failed",
       );
     } finally {
       setCheckpointBusy(false);
@@ -47,17 +49,6 @@ function App() {
     stop,
     addToolApprovalResponse,
   } = useAgentChat({ agent });
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIngesting(file.name);
-    const fd = new FormData();
-    fd.append("file", file);
-    await fetch("/api/upload", { method: "POST", body: fd });
-    setIngesting(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -169,13 +160,13 @@ function App() {
       <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
           <h1 className="shrink-0 text-sm font-semibold tracking-tight">
-            📚 RAG Agent
+            Second Brain
           </h1>
 
           <form onSubmit={handleSubmit} className="flex flex-1 gap-2">
             <input
               name="input"
-              placeholder="Type a message..."
+              placeholder="URL을 붙여넣거나 질문하세요…"
               autoComplete="off"
               className="flex-1 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm outline-none transition focus:border-zinc-400 focus:bg-white"
             />
@@ -186,19 +177,6 @@ function App() {
               Send
             </button>
           </form>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/pdf"
-            onChange={handleFileChange}
-            disabled={ingesting !== null}
-            className="block w-44 shrink-0 text-xs text-zinc-600 file:mr-2 file:rounded-full file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-zinc-700 disabled:opacity-50"
-          />
-          {ingesting && (
-            <span className="shrink-0 text-xs text-zinc-500">
-              Ingesting {ingesting}…
-            </span>
-          )}
           <button
             onClick={clearHistory}
             className="shrink-0 rounded-md px-2 py-1 text-xs text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
@@ -219,20 +197,23 @@ function App() {
         <div className="flex-1 space-y-4">
           <div className="mb-4 rounded-lg border border-dashed border-zinc-300 bg-white p-3 text-xs text-zinc-600">
             <div className="mb-2 font-medium text-zinc-800">
-              Phase 4 checkpoint — listSources
+              Phase 5 — E2E checklist
             </div>
-            <p className="mb-2 text-zinc-500">
-              Button dumps saved sources. Then ask in chat:{" "}
-              <code>내가 저장한 게 뭐가 있지?</code> — expect title + URL +
-              saved time for each source.
-            </p>
+            <ol className="mb-2 list-decimal space-y-1 pl-4 text-zinc-500">
+              <li>서로 다른 주제 URL 3개 채팅에 붙여넣어 저장</li>
+              <li>특정 글에만 있는 내용 질문 → 그 URL 출처 표시</li>
+              <li>
+                <code>내가 저장한 게 뭐가 있지?</code> → 출처 3개
+              </li>
+              <li>저장 안 한 내용 → 출처 없음 고지</li>
+            </ol>
             <button
               type="button"
               disabled={checkpointBusy}
-              onClick={runPhase4Checkpoint}
+              onClick={runE2eSnapshot}
               className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
             >
-              {checkpointBusy ? "Listing…" : "List sources"}
+              {checkpointBusy ? "Loading…" : "Snapshot sources"}
             </button>
             {checkpointResult && (
               <pre className="mt-2 max-h-48 overflow-auto rounded bg-zinc-50 p-2 text-[11px] text-zinc-700">
@@ -241,8 +222,9 @@ function App() {
             )}
           </div>
           {messages.length === 0 && (
-            <div className="flex h-full min-h-[40vh] items-center justify-center text-sm text-zinc-400">
-              Say something to get started.
+            <div className="flex h-full min-h-[40vh] flex-col items-center justify-center gap-2 text-center text-sm text-zinc-400">
+              <p>URL을 붙여넣으면 페이지를 기억합니다.</p>
+              <p>기억한 글을 바탕으로 질문하세요.</p>
             </div>
           )}
           {messages.map((message: UIMessage) => {

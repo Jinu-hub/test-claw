@@ -1,5 +1,5 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
-import { callable, getAgentByName, routeAgentRequest } from "agents";
+import { callable, routeAgentRequest } from "agents";
 import {
   convertToModelMessages,
   embed,
@@ -126,22 +126,12 @@ export class RAGAgent extends AIChatAgent<Env> {
     return chunks.filter(Boolean);
   }
 
-  /**
-   * Phase 1 checkpoint helper — fetch + chunk only (no Vectorize yet).
-   * Call from the client with agent.call("debugFetchMarkdown", ["https://example.com"]).
-   */
-  @callable()
-  async debugFetchMarkdown(url: string) {
-    const fetched = await this.fetchMarkdown(url);
-    const chunks = this.chunkText(fetched.markdown);
-    return {
-      url: fetched.url,
-      title: fetched.title,
-      markdownChars: fetched.markdown.length,
-      chunkCount: chunks.length,
-      chunkSizes: chunks.map((c) => c.length),
-      preview: chunks[0]?.slice(0, 200) ?? "",
-    };
+  async embedChunks(chunks: string[]) {
+    const { embeddings } = await embedMany({
+      model: this.embedder(),
+      values: chunks,
+    });
+    return embeddings;
   }
 
   /** Remove prior chunks/vectors for a source URL so re-saves stay consistent. */
@@ -168,7 +158,6 @@ export class RAGAgent extends AIChatAgent<Env> {
       throw new Error(`No markdown content extracted from ${url}`);
     }
 
-    // Clear both the requested URL and the final URL (redirects).
     await this.forgetSource(url);
     if (fetched.url !== url) await this.forgetSource(fetched.url);
 
@@ -198,20 +187,6 @@ export class RAGAgent extends AIChatAgent<Env> {
       title: fetched.title,
       chunkCount: chunks.length,
       savedAt,
-    };
-  }
-
-  /** Phase 2 checkpoint — confirm SQL rows after saveUrl. */
-  @callable()
-  async debugInspectMemory() {
-    const sources = await this.listSources();
-    const [{ count: chunkCount } = { count: 0 }] = this.sql<{
-      count: number;
-    }>`SELECT COUNT(*) AS count FROM chunks`;
-    return {
-      sourceCount: sources.length,
-      chunkCount,
-      sources,
     };
   }
 
@@ -264,41 +239,6 @@ export class RAGAgent extends AIChatAgent<Env> {
     };
   }
 
-  async convert(fileName: string, buffer: ArrayBuffer, fileType: string) {
-    const result = await this.env.AI.toMarkdown({
-      name: fileName,
-      blob: new Blob([buffer], { type: fileType }),
-    });
-    if (result.format === "error") throw new Error("Could not convert");
-    return result.data;
-  }
-
-  async embedChunks(chunks: string[]) {
-    const { embeddings } = await embedMany({
-      model: this.embedder(),
-      values: chunks,
-    });
-    return embeddings;
-  }
-
-  async ingestPdf(buffer: ArrayBuffer, fileName: string, fileType: string) {
-    const markdown = await this.convert(fileName, buffer, fileType);
-    const chunks = markdown.split("\n\n\n");
-    console.log(chunks.length);
-    const embeddings = await this.embedChunks(chunks);
-    const vectors = chunks.map((chunk, index) => {
-      const id = crypto.randomUUID();
-      void this
-        .sql`INSERT INTO chunks (id, source, text) VALUES (${id}, ${fileName}, ${chunk})`;
-      return {
-        id,
-        values: embeddings[index],
-        metadata: { source: fileName },
-      };
-    });
-    await this.env.VECTORIZE.upsert(vectors);
-  }
-
   async onChatMessage() {
     const workersAi = createWorkersAI({ binding: this.env.AI });
     const result = streamText({
@@ -306,7 +246,7 @@ export class RAGAgent extends AIChatAgent<Env> {
       system: [
         "You are a second-brain assistant that remembers web pages the user saves.",
         "When the user pastes or shares a URL to remember, call `saveUrl` with that URL.",
-        "When the user asks what they have saved / which sources exist (e.g. \"내가 저장한 게 뭐가 있지?\"), call `listSources` and list every URL with its title and saved time.",
+        'When the user asks what they have saved / which sources exist (e.g. "내가 저장한 게 뭐가 있지?"), call `listSources` and list every URL with its title and saved time.',
         "Before answering questions about saved content, call `recall` and base your answer only on the returned chunks.",
         "Always cite the source URL for any fact you use (include the full URL in the answer).",
         'If recall returns no relevant chunks, or the answer is not supported by those chunks, say you do not have a source for that content (e.g. "해당 내용의 출처를 가지고 있지 않다"). Do not invent facts or URLs.',
@@ -356,25 +296,9 @@ function titleFromMarkdown(markdown: string): string | null {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    if (url.pathname === "/api/upload") {
-      const formData = await request.formData();
-      const file = formData.get("file") as File;
-      const buffer = await file.arrayBuffer();
-      const fileName = `${Date.now()}-${file.name}`;
-      await env.FILES.put(fileName, buffer, {
-        httpMetadata: {
-          contentType: file.type,
-        },
-      });
-      const stub = await getAgentByName(env.RAGAgent, "default");
-      await stub.ingestPdf(buffer, fileName, file.type);
-      return new Response("ok");
-    }
     return (
       (await routeAgentRequest(request, env)) ??
       new Response(null, { status: 404 })
     );
   },
 } satisfies ExportedHandler<Env>;
-
