@@ -13,33 +13,18 @@ function App() {
 
   const agent = useAgent({ agent: "RAGAgent" });
 
-  const runPhase3Checkpoint = async () => {
+  const runPhase4Checkpoint = async () => {
     setCheckpointBusy(true);
     setCheckpointResult(null);
     try {
-      // Ensure example.com is in memory, then recall a question about it
-      // and a question that should miss.
-      await agent.call("saveUrl", ["https://example.com"]);
-      const hit = await agent.call("recall", [
-        "What is the Example Domain page for?",
-      ]);
-      const miss = await agent.call("recall", [
-        "What is the capital of Mars colony 7?",
-      ]);
+      const sources = await agent.call("listSources", []);
       setCheckpointResult(
         JSON.stringify(
           {
-            hit: {
-              matchCount: (hit as { matchCount: number }).matchCount,
-              sourceUrls: (hit as { sourceUrls: string[] }).sourceUrls,
-              preview: (hit as { chunks: { text: string }[] }).chunks[0]
-                ?.text?.slice(0, 160),
-            },
-            miss: {
-              matchCount: (miss as { matchCount: number }).matchCount,
-              sourceUrls: (miss as { sourceUrls: string[] }).sourceUrls,
-              note: "Chat should refuse unsupported answers even if weak matches exist — verify in chat.",
-            },
+            sourceCount: Array.isArray(sources) ? sources.length : 0,
+            sources,
+            chatHint:
+              'Ask in chat: "내가 저장한 게 뭐가 있지?" — agent should call listSources and list all.',
           },
           null,
           2,
@@ -47,7 +32,7 @@ function App() {
       );
     } catch (err) {
       setCheckpointResult(
-        err instanceof Error ? err.message : "Phase 3 checkpoint failed",
+        err instanceof Error ? err.message : "Phase 4 checkpoint failed",
       );
     } finally {
       setCheckpointBusy(false);
@@ -234,21 +219,20 @@ function App() {
         <div className="flex-1 space-y-4">
           <div className="mb-4 rounded-lg border border-dashed border-zinc-300 bg-white p-3 text-xs text-zinc-600">
             <div className="mb-2 font-medium text-zinc-800">
-              Phase 3 checkpoint — recall + source citations
+              Phase 4 checkpoint — listSources
             </div>
             <p className="mb-2 text-zinc-500">
-              Button checks Vectorize→SQL recall. Then in chat: ask about
-              Example Domain (expect{" "}
-              <code>https://example.com/</code>), and ask something unsaved
-              (expect “출처를 가지고 있지 않다”).
+              Button dumps saved sources. Then ask in chat:{" "}
+              <code>내가 저장한 게 뭐가 있지?</code> — expect title + URL +
+              saved time for each source.
             </p>
             <button
               type="button"
               disabled={checkpointBusy}
-              onClick={runPhase3Checkpoint}
+              onClick={runPhase4Checkpoint}
               className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
             >
-              {checkpointBusy ? "Recalling…" : "Test recall"}
+              {checkpointBusy ? "Listing…" : "List sources"}
             </button>
             {checkpointResult && (
               <pre className="mt-2 max-h-48 overflow-auto rounded bg-zinc-50 p-2 text-[11px] text-zinc-700">

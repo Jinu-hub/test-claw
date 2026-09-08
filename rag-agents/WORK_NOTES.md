@@ -28,11 +28,16 @@
   1. `Test recall` → `hit.sourceUrls`에 example.com
   2. 채팅에서 Example Domain 질문 → 답에 URL
   3. 저장 안 한 내용 질문 → 출처 없음 고지
-- **상태:** 구현 완료 → 사용자 OK 대기
+- **상태:** OK ✓
 
 ## Phase 4 — `listSources` 도구
-- [ ] 저장한 모든 URL을 제목·저장 시각과 함께 반환
-- **체크포인트:** “내가 저장한 게 뭐가 있지?” → 출처 목록 전부
+- [x] 저장한 모든 URL을 제목·저장 시각과 함께 반환
+- [x] 채팅 도구 + 시스템 프롬프트 (저장 목록 질문 시 호출)
+- [x] UI "List sources" 체크포인트
+- **체크포인트:**
+  1. `List sources` → url / title / saved_at 목록
+  2. 채팅 “내가 저장한 게 뭐가 있지?” → `listSources` 호출 후 전부
+- **상태:** 구현 완료 → 사용자 OK 대기
 
 ## Phase 5 — 정리 + E2E
 - [ ] PDF 업로드/`ingestPdf`/`AI.toMarkdown`/`/api/upload`/R2 의존 제거 (과제: PDF·스크래핑 금지)

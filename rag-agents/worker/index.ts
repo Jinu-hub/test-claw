@@ -204,11 +204,7 @@ export class RAGAgent extends AIChatAgent<Env> {
   /** Phase 2 checkpoint — confirm SQL rows after saveUrl. */
   @callable()
   async debugInspectMemory() {
-    const sources = this.sql<{
-      url: string;
-      title: string;
-      saved_at: string;
-    }>`SELECT url, title, saved_at FROM sources ORDER BY saved_at DESC`;
+    const sources = await this.listSources();
     const [{ count: chunkCount } = { count: 0 }] = this.sql<{
       count: number;
     }>`SELECT COUNT(*) AS count FROM chunks`;
@@ -217,6 +213,16 @@ export class RAGAgent extends AIChatAgent<Env> {
       chunkCount,
       sources,
     };
+  }
+
+  /** Return every saved URL with title and saved timestamp. */
+  @callable()
+  async listSources() {
+    return this.sql<{
+      url: string;
+      title: string;
+      saved_at: string;
+    }>`SELECT url, title, saved_at FROM sources ORDER BY saved_at DESC`;
   }
 
   /**
@@ -300,6 +306,7 @@ export class RAGAgent extends AIChatAgent<Env> {
       system: [
         "You are a second-brain assistant that remembers web pages the user saves.",
         "When the user pastes or shares a URL to remember, call `saveUrl` with that URL.",
+        "When the user asks what they have saved / which sources exist (e.g. \"내가 저장한 게 뭐가 있지?\"), call `listSources` and list every URL with its title and saved time.",
         "Before answering questions about saved content, call `recall` and base your answer only on the returned chunks.",
         "Always cite the source URL for any fact you use (include the full URL in the answer).",
         'If recall returns no relevant chunks, or the answer is not supported by those chunks, say you do not have a source for that content (e.g. "해당 내용의 출처를 가지고 있지 않다"). Do not invent facts or URLs.',
@@ -316,6 +323,12 @@ export class RAGAgent extends AIChatAgent<Env> {
               .meta({ description: "Absolute http(s) URL to save." }),
           }),
           execute: async ({ url }) => this.saveUrl(url),
+        }),
+        listSources: tool({
+          description:
+            "List all saved source URLs with title and saved timestamp. Call when the user asks what they have saved or wants a catalog of remembered pages.",
+          inputSchema: z.object({}),
+          execute: async () => this.listSources(),
         }),
         recall: tool({
           description:
