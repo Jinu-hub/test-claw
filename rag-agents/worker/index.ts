@@ -1,5 +1,5 @@
 import { AIChatAgent } from "@cloudflare/ai-chat";
-import { getAgentByName, routeAgentRequest } from "agents";
+import { callable, getAgentByName, routeAgentRequest } from "agents";
 import {
   convertToModelMessages,
   embed,
@@ -11,8 +11,24 @@ import {
 import { createWorkersAI } from "workers-ai-provider";
 import z from "zod";
 
+/** Target chunk size for Vectorize embeddings (~800 chars). */
+export const CHUNK_SIZE = 800;
+
+export type FetchedMarkdown = {
+  url: string;
+  title: string;
+  markdown: string;
+};
+
 export class RAGAgent extends AIChatAgent<Env> {
   onStart() {
+    void this.sql`
+      CREATE TABLE IF NOT EXISTS sources (
+        url TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        saved_at TEXT NOT NULL
+      )
+    `;
     void this
       .sql`CREATE TABLE IF NOT EXISTS chunks (id TEXT PRIMARY KEY, source TEXT NOT NULL, text TEXT NOT NULL);`;
   }
@@ -21,6 +37,111 @@ export class RAGAgent extends AIChatAgent<Env> {
     return createWorkersAI({ binding: this.env.AI }).textEmbeddingModel(
       "@cf/baai/bge-base-en-v1.5",
     );
+  }
+
+  /** Browser Rendering `/markdown` — no custom scraping. */
+  async fetchMarkdown(url: string): Promise<FetchedMarkdown> {
+    const accountId = this.env.ACCOUNT_ID;
+    const apiToken = this.env.API_TOKEN;
+    if (
+      !accountId ||
+      !apiToken ||
+      accountId.includes("yyyy") ||
+      apiToken.includes("xxxx")
+    ) {
+      throw new Error(
+        "ACCOUNT_ID / API_TOKEN missing. Set them in .dev.vars (local) or via wrangler secret put.",
+      );
+    }
+
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/browser-rendering/markdown`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url }),
+      },
+    );
+
+    const data = (await res.json()) as {
+      success?: boolean;
+      result?: string;
+      meta?: { title?: string; finalUrl?: string };
+      errors?: { message: string }[];
+    };
+
+    if (!res.ok || !data.success || typeof data.result !== "string") {
+      const detail =
+        data.errors?.map((e) => e.message).join("; ") ||
+        `HTTP ${res.status}`;
+      throw new Error(`Browser Rendering /markdown failed: ${detail}`);
+    }
+
+    const title =
+      data.meta?.title?.trim() ||
+      titleFromMarkdown(data.result) ||
+      new URL(url).hostname;
+
+    return {
+      url: data.meta?.finalUrl || url,
+      title,
+      markdown: data.result,
+    };
+  }
+
+  /** Split markdown into ~CHUNK_SIZE character pieces, preferring paragraph breaks. */
+  chunkText(markdown: string, size = CHUNK_SIZE): string[] {
+    const cleaned = markdown.replace(/\r\n/g, "\n").trim();
+    if (!cleaned) return [];
+
+    const paragraphs = cleaned.split(/\n{2,}/);
+    const chunks: string[] = [];
+    let current = "";
+
+    const flush = () => {
+      const piece = current.trim();
+      if (piece) chunks.push(piece);
+      current = "";
+    };
+
+    for (const para of paragraphs) {
+      const next = current ? `${current}\n\n${para}` : para;
+      if (next.length <= size) {
+        current = next;
+        continue;
+      }
+      if (current) flush();
+      if (para.length <= size) {
+        current = para;
+        continue;
+      }
+      for (let i = 0; i < para.length; i += size) {
+        chunks.push(para.slice(i, i + size).trim());
+      }
+    }
+    flush();
+    return chunks.filter(Boolean);
+  }
+
+  /**
+   * Phase 1 checkpoint helper — fetch + chunk only (no Vectorize yet).
+   * Call from the client with agent.call("debugFetchMarkdown", ["https://example.com"]).
+   */
+  @callable()
+  async debugFetchMarkdown(url: string) {
+    const fetched = await this.fetchMarkdown(url);
+    const chunks = this.chunkText(fetched.markdown);
+    return {
+      url: fetched.url,
+      title: fetched.title,
+      markdownChars: fetched.markdown.length,
+      chunkCount: chunks.length,
+      chunkSizes: chunks.map((c) => c.length),
+      preview: chunks[0]?.slice(0, 200) ?? "",
+    };
   }
 
   async convert(fileName: string, buffer: ArrayBuffer, fileType: string) {
@@ -94,6 +215,11 @@ export class RAGAgent extends AIChatAgent<Env> {
 
     return result.toUIMessageStreamResponse();
   }
+}
+
+function titleFromMarkdown(markdown: string): string | null {
+  const heading = markdown.match(/^#\s+(.+)$/m);
+  return heading?.[1]?.trim() || null;
 }
 
 export default {

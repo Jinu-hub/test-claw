@@ -5,9 +5,28 @@ import { useRef, useState } from "react";
 
 function App() {
   const [ingesting, setIngesting] = useState<string | null>(null);
+  const [phase1Result, setPhase1Result] = useState<string | null>(null);
+  const [phase1Busy, setPhase1Busy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const agent = useAgent({ agent: "RAGAgent" });
+
+  const runPhase1Checkpoint = async () => {
+    setPhase1Busy(true);
+    setPhase1Result(null);
+    try {
+      const result = await agent.call("debugFetchMarkdown", [
+        "https://example.com",
+      ]);
+      setPhase1Result(JSON.stringify(result, null, 2));
+    } catch (err) {
+      setPhase1Result(
+        err instanceof Error ? err.message : "Phase 1 checkpoint failed",
+      );
+    } finally {
+      setPhase1Busy(false);
+    }
+  };
 
   const {
     messages,
@@ -187,6 +206,24 @@ function App() {
 
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-6 pb-24">
         <div className="flex-1 space-y-4">
+          <div className="mb-4 rounded-lg border border-dashed border-zinc-300 bg-white p-3 text-xs text-zinc-600">
+            <div className="mb-2 font-medium text-zinc-800">
+              Phase 1 checkpoint — fetchMarkdown + chunkText
+            </div>
+            <button
+              type="button"
+              disabled={phase1Busy}
+              onClick={runPhase1Checkpoint}
+              className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+            >
+              {phase1Busy ? "Fetching…" : "Test example.com"}
+            </button>
+            {phase1Result && (
+              <pre className="mt-2 max-h-48 overflow-auto rounded bg-zinc-50 p-2 text-[11px] text-zinc-700">
+                {phase1Result}
+              </pre>
+            )}
+          </div>
           {messages.length === 0 && (
             <div className="flex h-full min-h-[40vh] items-center justify-center text-sm text-zinc-400">
               Say something to get started.
