@@ -9,16 +9,17 @@
 - [x] `OrchestratorState`를 토론용으로 교체 (`status`, `topic`, `sides`, `activity`, `cases`)
 - [x] `AdvocateProgressReporter`용 타입 자리 마련 (`ProgressReporter` + `Advocate` stub)
 - **체크포인트:** `tsc -b` 통과 + 스키마가 논거 2개/4개 입력을 거부
-- **상태:** 체크포인트 대기 (Schema check 버튼 / 콘솔 검증 PASS)
+- **상태:** OK ✓
 
 ## Phase 2 — Advocate 서브 에이전트 + RpcTarget
-- [ ] `export class Advocate extends Agent` (worker entry export)
-- [ ] `prepareCase(topic, stance, reporter)` — `Output.object` + `ArgumentSchema`
-- [ ] `ProgressReporter extends RpcTarget` — 부모 `setState.activity` 갱신
-- [ ] 진행 보고: 모두발언 → 논거 1/3·2/3·3/3 → 마무리
-- [ ] `@callable debugAdvocate`로 한쪽만 단독 실행 가능
+- [x] `export class Advocate extends Agent` (worker entry export)
+- [x] `prepareCase(topic, stance, reporter)` — `Output.object` + `ArgumentSchema`
+- [x] `ProgressReporter extends RpcTarget` — 부모 `setState.activity` 갱신
+- [x] 진행 보고: 모두발언 → 논거 1/3·2/3·3/3 → 마무리
+- [x] `@callable debugAdvocate`로 한쪽만 단독 실행 가능
 - **체크포인트:** UI/callable로 한쪽 실행 → activity가 단계별로 바뀌고, 반환값에 논거 정확히 3개
-- **상태:** 대기
+- **참고:** 클라이언트 RPC 기본 타임아웃 30s → `defaultCallTimeout: 0` + `call(..., { timeout: 0 })`. Advocate는 LLM 1회(`Output.object`)로 축소.
+- **상태:** 체크포인트 대기
 
 ## Phase 3 — 부모: 입장 추출 + Promise.all
 - [ ] `@callable debate(topic)` — 주제에서 `StancesSchema`로 양쪽 추출
