@@ -19,15 +19,16 @@
 - [x] `@callable debugAdvocate`로 한쪽만 단독 실행 가능
 - **체크포인트:** UI/callable로 한쪽 실행 → activity가 단계별로 바뀌고, 반환값에 논거 정확히 3개
 - **참고:** 클라이언트 RPC 기본 타임아웃 30s → `defaultCallTimeout: 0` + `call(..., { timeout: 0 })`. Advocate는 LLM 1회(`Output.object`)로 축소.
-- **상태:** 체크포인트 대기
+- **상태:** OK ✓
 
 ## Phase 3 — 부모: 입장 추출 + Promise.all
-- [ ] `@callable debate(topic)` — 주제에서 `StancesSchema`로 양쪽 추출
-- [ ] `this.subAgent(Advocate, …)` 두 개 생성
-- [ ] `Promise.all`로 동시 실행 (상대 주장 미공유)
-- [ ] 완료 후 `cases`를 state에 저장
+- [x] `@callable debate(topic)` — 주제에서 `StancesSchema`로 양쪽 추출
+- [x] `this.subAgent(Advocate, …)` 두 개 생성
+- [x] `Promise.all`로 동시 실행 (상대 주장 미공유)
+- [x] 완료 후 `cases`를 state에 저장
 - **체크포인트:** “민초, 찬성인가 반대인가?” → 두 activity가 동시에 갱신, cases 양쪽 각 논거 3개
-- **상태:** 대기
+- **수정:** 입장 추출 프롬프트에 민초=민트초코 등 취향 논쟁 힌트 추가 (정치 오해석 방지)
+- **상태:** 체크포인트 대기
 
 ## Phase 4 — 심판 스트리밍 판정
 - [ ] 양쪽 도착 후 심판 `streamText` (채팅 스트리밍)
