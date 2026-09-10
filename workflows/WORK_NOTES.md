@@ -11,16 +11,22 @@
 - [x] deps: `ai`, `zod`, `workers-ai-provider`
 - [x] Pizza UI → Host / Participant 스캐폴드
 - **체크포인트:** `tsc -b` 통과 + Zod 스키마 export 확인
-- **상태:** 체크포인트 대기
+- **상태:** OK ✓
 
 ## Phase 2 — Agent 방 API (Live Poll 패턴)
-- [ ] `@callable join(name)` — 참가자 목록 동기화
-- [ ] `@callable submitAnswer(text)` — 이름+답변을 state에 수집 (답변 창 open일 때만)
-- [ ] `@callable closeRound(round)` — `sendEvent`로 조기 종료
-- [ ] `@callable publishResults()` / approve 연동 준비
-- [ ] Host·Participant UI에 join / 이름 입력
+- [x] `@callable join(name)` — 참가자 목록 동기화 (+ connection.state에 playerName)
+- [x] `@callable submitAnswer(text)` — 답변 창 open일 때만 이름+답변 수집
+- [x] `@callable closeRound(round)` — 로컬 창 닫기 + `sendWorkflowEvent(close-N)`
+- [x] `@callable publishResults()` — approve / published 상태 연동 준비
+- [x] `@callable openAnswers()` — Phase 2 체크포인트용 (워크플로 연동 전 임시)
+- [x] Host·Participant UI에 join / 이름 입력 / 답변·참가자 목록
 - **체크포인트:** 탭 2개에서 join → 참가자 목록 동시 갱신, submitAnswer가 state에 쌓임
-- **상태:** 대기
+- **상태:** 체크포인트 대기
+- **테스트:**
+  1. `npm run dev` → `/` 탭 2개 + `/host` 탭 1개 (같은 `quiz-room`)
+  2. 참가자 각기 다른 이름으로 Join → Host에 목록 동시 표시
+  3. Host **Open answers** → 참가자가 답 제출 → Host **Answers this round**에 쌓임
+  4. Host **Close round** → 답변 창 닫힘 (추가 제출 거부)
 
 ## Phase 3 — QuizWorkflow: 문제 생성 + 표시
 - [ ] `step.do("question-1"…"question-5")` + `Output.object` + `QuestionSchema`

@@ -1,16 +1,53 @@
 import { useAgent } from "agents/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { initialQuizState, type QuizState } from "../worker/types";
 
-/** Phase 1 shell — join / answer UI in Phase 2 & 7 */
+const NAME_KEY = "quiz-player-name";
+
 export function Participant() {
   const [state, setState] = useState<QuizState>(initialQuizState());
-  useAgent({
+  const [nameInput, setNameInput] = useState("");
+  const [joinedName, setJoinedName] = useState<string | null>(null);
+  const [answer, setAnswer] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const agent = useAgent({
     agent: "QuizAgent",
     name: "quiz-room",
     query: { role: "participant" },
     onStateUpdate: setState,
   });
+
+  useEffect(() => {
+    const saved = localStorage.getItem(NAME_KEY);
+    if (saved) setNameInput(saved);
+  }, []);
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const onJoin = () =>
+    run(async () => {
+      const result = (await agent.stub.join(nameInput)) as {
+        name: string;
+      };
+      setJoinedName(result.name);
+      localStorage.setItem(NAME_KEY, result.name);
+    });
+
+  const onSubmit = () =>
+    run(async () => {
+      await agent.stub.submitAnswer(answer);
+      setAnswer("");
+    });
+
+  const myAnswer = state.answers.find((a) => a.playerName === joinedName);
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
@@ -18,10 +55,43 @@ export function Participant() {
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <h1 className="text-lg font-semibold tracking-tight">Quiz Show</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Participant view (Phase 1 scaffold). Join &amp; answer land in Phase
-            2.
+            Join the room, then submit when the host opens answers.
           </p>
-          <p className="mt-4 text-sm text-zinc-600">
+
+          {!joinedName ? (
+            <div className="mt-4 flex gap-2">
+              <input
+                value={nameInput}
+                onChange={(e) => setNameInput(e.currentTarget.value)}
+                placeholder="Your name"
+                aria-label="Your name"
+                className="flex-1 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm outline-none transition focus:border-zinc-400"
+              />
+              <button
+                type="button"
+                onClick={onJoin}
+                className="inline-flex items-center rounded-full bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-zinc-700"
+              >
+                Join
+              </button>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-zinc-600">
+              Playing as <span className="font-medium">{joinedName}</span>
+              <button
+                type="button"
+                className="ml-2 text-xs text-zinc-400 underline"
+                onClick={() => {
+                  setJoinedName(null);
+                  localStorage.removeItem(NAME_KEY);
+                }}
+              >
+                change
+              </button>
+            </p>
+          )}
+
+          <p className="mt-3 text-sm text-zinc-600">
             Status: <span className="font-medium">{state.status}</span>
             {state.topic ? (
               <>
@@ -30,6 +100,65 @@ export function Participant() {
               </>
             ) : null}
           </p>
+          {error ? (
+            <p className="mt-2 text-sm text-red-600">{error}</p>
+          ) : null}
+        </section>
+
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h2 className="text-sm font-semibold tracking-tight">
+            Participants ({state.participants.length})
+          </h2>
+          <ul className="mt-3 flex flex-wrap gap-2 text-sm">
+            {state.participants.length === 0 && (
+              <li className="text-zinc-400">Waiting for players…</li>
+            )}
+            {state.participants.map((p) => (
+              <li
+                key={p.name}
+                className="rounded-full bg-zinc-100 px-3 py-1 text-zinc-700"
+              >
+                {p.name}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h2 className="text-sm font-semibold tracking-tight">
+            {state.question ? `Q${state.round}: ${state.question}` : "Question"}
+          </h2>
+
+          {state.answerWindowOpen && joinedName ? (
+            <div className="mt-4 space-y-2">
+              <textarea
+                value={answer}
+                onChange={(e) => setAnswer(e.currentTarget.value)}
+                rows={3}
+                placeholder="Your answer"
+                aria-label="Your answer"
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-400"
+              />
+              <button
+                type="button"
+                onClick={onSubmit}
+                className="inline-flex items-center rounded-full bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-zinc-700"
+              >
+                Submit answer
+              </button>
+              {myAnswer ? (
+                <p className="text-sm text-emerald-700">
+                  Submitted: {myAnswer.text}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-zinc-400">
+              {joinedName
+                ? "Waiting for the host to open the answer window…"
+                : "Join first to answer."}
+            </p>
+          )}
         </section>
       </div>
     </div>
