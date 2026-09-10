@@ -28,7 +28,7 @@ const QUESTION_RETRIES = {
   backoff: "exponential" as const,
 };
 
-/** Workflow waitForEvent type for round N (Phase 4). */
+/** Workflow waitForEvent type / step name for round N. */
 export function closeEventType(round: number): string {
   return `close-${round}`;
 }
@@ -37,10 +37,15 @@ function questionStepName(round: number): string {
   return `question-${round}`;
 }
 
+type ClosePayload = {
+  round: number;
+  closedAt: number;
+  reason?: string;
+};
+
 /**
- * Quiz host workflow — fixed step names question-N / grade-N.
- * Phase 3: generate + broadcast questions.
- * Phase 4+: waitForEvent replaces sleep; Phase 5 adds grading.
+ * Quiz host workflow — fixed step names question-N / close-N / grade-N.
+ * Phase 4: waitForEvent with 60s timeout; host can sendEvent early.
  */
 export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
   async run(event: AgentWorkflowEvent<Params>, step: AgentWorkflowStep) {
@@ -94,14 +99,26 @@ export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
         answers: [],
       });
 
-      // Phase 4 will replace this with waitForEvent(`close-${round}`, { timeout: 60s })
-      await step.sleep(`answer-window-${round}`, ANSWER_WINDOW);
+      const eventName = closeEventType(round);
+      let closedBy: "host" | "timeout" = "timeout";
+      try {
+        await step.waitForEvent<ClosePayload>(eventName, {
+          type: eventName,
+          timeout: ANSWER_WINDOW,
+        });
+        closedBy = "host";
+      } catch {
+        // Timeout: continue to grading without failing the workflow
+        closedBy = "timeout";
+      }
 
       await step.mergeAgentState({
         answerWindowOpen: false,
         answerClosesAt: null,
         status: "grading",
       });
+
+      console.log(`round ${round} closed by ${closedBy}`);
 
       // Phase 5: step.do(`grade-${round}`, …)
 
@@ -240,11 +257,18 @@ export class QuizAgent extends Agent<Env, QuizState> {
     return { round: r, answerClosesAt: closesAt };
   }
 
+  /**
+   * Host early-close: closes the local answer window and wakes
+   * waitForEvent(`close-${round}`) on the running workflow.
+   */
   @callable()
   async closeRound(round?: number) {
     const r = round ?? this.state.round;
     if (r < 1) {
       throw new Error("No active round to close");
+    }
+    if (!this.state.answerWindowOpen && this.state.status !== "answering") {
+      throw new Error("Answer window is not open");
     }
 
     this.setState({
@@ -254,17 +278,18 @@ export class QuizAgent extends Agent<Env, QuizState> {
       status: "grading",
     });
 
-    if (this.state.workflowId) {
-      try {
-        await this.sendWorkflowEvent("QUIZ_WORKFLOW", this.state.workflowId, {
-          type: closeEventType(r),
-          payload: { round: r, closedAt: Date.now() },
-        });
-      } catch (err) {
-        // Workflow may not be waiting yet (Phase 2 scaffold) — local close still applies.
-        console.log("closeRound sendWorkflowEvent:", err);
-      }
+    if (!this.state.workflowId) {
+      throw new Error("No active quiz workflow");
     }
+
+    await this.sendWorkflowEvent("QUIZ_WORKFLOW", this.state.workflowId, {
+      type: closeEventType(r),
+      payload: {
+        round: r,
+        closedAt: Date.now(),
+        reason: "host",
+      } satisfies ClosePayload,
+    });
 
     return { round: r, answers: this.state.answers.length };
   }

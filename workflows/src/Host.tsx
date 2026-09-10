@@ -59,12 +59,13 @@ export function Host() {
             </button>
             <button
               type="button"
+              disabled={!state.answerWindowOpen}
               onClick={() =>
                 run(() => agent.stub.closeRound(state.round || 1))
               }
-              className="inline-flex items-center rounded-full border border-zinc-300 bg-white px-4 py-1.5 text-sm font-medium transition hover:bg-zinc-100"
+              className="inline-flex items-center rounded-full border border-zinc-300 bg-white px-4 py-1.5 text-sm font-medium transition hover:bg-zinc-100 disabled:opacity-40"
             >
-              Close round
+              Close round early
             </button>
             <button
               type="button"

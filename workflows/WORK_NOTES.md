@@ -30,19 +30,17 @@
 - [x] 고정 단계명 `question-N` 유지
 - [x] 라운드 사이 임시 `step.sleep("answer-window-N", 60s)` (Phase 4에서 waitForEvent로 교체)
 - **체크포인트:** 문제 생성 + 모든 화면 동시 표시; wrangler 재시작 후 같은 문제
-- **상태:** 체크포인트 대기
-- **테스트:**
-  1. 참가자 join 후 Host **Start** (주제 입력)
-  2. `generating` → 곧 `Q1: …` 가 Host/Participant에 동시 표시
-  3. 60초 창 동안 답 제출 가능
-  4. (선택) 라운드 중 wrangler 종료→재시작 → 같은 Qn 유지
+- **상태:** OK ✓
 
 ## Phase 4 — 답변 창: waitForEvent + 조기 종료
-- [ ] `waitForEvent("close-N", { timeout: 60s })`
-- [ ] Host 버튼 → `sendEvent` 조기 종료
-- [ ] 타임아웃 자동 진행
+- [x] `waitForEvent("close-N", { type, timeout: 60s })`
+- [x] Host **Close round early** → `sendWorkflowEvent` 조기 종료
+- [x] 타임아웃 시 try/catch로 자동 진행 (워크플로 실패 방지)
 - **체크포인트:** 한 라운드 자동 종료 + 다른 라운드 조기 종료
-- **상태:** 대기
+- **상태:** 체크포인트 대기
+- **테스트:**
+  1. Start 후 라운드 1은 60초 기다려 자동 닫힘 확인
+  2. 라운드 2는 Host **Close round early**로 즉시 다음 단계
 
 ## Phase 5 — 채점 + 순위표 (5라운드)
 - [ ] `step.do("grade-N")` LLM 유사 답 채점
