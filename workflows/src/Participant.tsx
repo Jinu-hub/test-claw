@@ -1,6 +1,7 @@
 import { useAgent } from "agents/react";
 import { useEffect, useState } from "react";
 import { initialQuizState, type QuizState } from "../worker/types";
+import { useSecondsLeft } from "./useSecondsLeft";
 
 const NAME_KEY = "quiz-player-name";
 
@@ -10,6 +11,9 @@ export function Participant() {
   const [joinedName, setJoinedName] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const secondsLeft = useSecondsLeft(
+    state.answerWindowOpen ? state.answerClosesAt : null,
+  );
 
   const agent = useAgent({
     agent: "QuizAgent",
@@ -55,7 +59,8 @@ export function Participant() {
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <h1 className="text-lg font-semibold tracking-tight">Quiz Show</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Join the room, then submit when the host opens answers.
+            Join the room. Questions appear for everyone when the workflow
+            generates them.
           </p>
 
           {!joinedName ? (
@@ -99,6 +104,12 @@ export function Participant() {
                 · Topic: <span className="font-medium">{state.topic}</span>
               </>
             ) : null}
+            {state.round > 0 ? (
+              <>
+                {" "}
+                · Round {state.round}/{state.totalRounds}
+              </>
+            ) : null}
           </p>
           {error ? (
             <p className="mt-2 text-sm text-red-600">{error}</p>
@@ -126,8 +137,17 @@ export function Participant() {
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-semibold tracking-tight">
-            {state.question ? `Q${state.round}: ${state.question}` : "Question"}
+            {state.question
+              ? `Q${state.round}: ${state.question}`
+              : state.status === "generating"
+                ? "Generating question…"
+                : "Question"}
           </h2>
+          {state.answerWindowOpen && secondsLeft != null ? (
+            <p className="mt-1 text-sm font-medium text-emerald-700">
+              {secondsLeft}s left
+            </p>
+          ) : null}
 
           {state.answerWindowOpen && joinedName ? (
             <div className="mt-4 space-y-2">
@@ -154,9 +174,13 @@ export function Participant() {
             </div>
           ) : (
             <p className="mt-3 text-sm text-zinc-400">
-              {joinedName
-                ? "Waiting for the host to open the answer window…"
-                : "Join first to answer."}
+              {!joinedName
+                ? "Join first to answer."
+                : state.status === "generating"
+                  ? "Host started the quiz — waiting for the LLM…"
+                  : state.status === "grading"
+                    ? "Grading this round…"
+                    : "Waiting for the next question…"}
             </p>
           )}
         </section>

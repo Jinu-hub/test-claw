@@ -1,11 +1,15 @@
 import { useAgent } from "agents/react";
 import { useState } from "react";
 import { initialQuizState, type QuizState } from "../worker/types";
+import { useSecondsLeft } from "./useSecondsLeft";
 
 export function Host() {
   const [state, setState] = useState<QuizState>(initialQuizState());
   const [topic, setTopic] = useState("Korean cinema");
   const [error, setError] = useState<string | null>(null);
+  const secondsLeft = useSecondsLeft(
+    state.answerWindowOpen ? state.answerClosesAt : null,
+  );
   const agent = useAgent({
     agent: "QuizAgent",
     name: "quiz-room",
@@ -33,8 +37,8 @@ export function Host() {
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <h1 className="text-lg font-semibold tracking-tight">Quiz Host</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Manage the room: start a quiz, open/close the answer window, publish
-            results.
+            Start the workflow to generate questions. Players see each round at
+            the same time.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -52,13 +56,6 @@ export function Host() {
               className="inline-flex items-center rounded-full bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-40"
             >
               Start
-            </button>
-            <button
-              type="button"
-              onClick={() => run(() => agent.stub.openAnswers(1, 60))}
-              className="inline-flex items-center rounded-full border border-zinc-300 bg-white px-4 py-1.5 text-sm font-medium transition hover:bg-zinc-100"
-            >
-              Open answers
             </button>
             <button
               type="button"
@@ -93,15 +90,39 @@ export function Host() {
                 · Topic: <span className="font-medium">{state.topic}</span>
               </>
             ) : null}
+            {state.round > 0 ? (
+              <>
+                {" "}
+                · Round {state.round}/{state.totalRounds}
+              </>
+            ) : null}
             {state.answerWindowOpen ? (
               <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
                 answers open
+                {secondsLeft != null ? ` · ${secondsLeft}s` : ""}
               </span>
             ) : null}
           </p>
           {error ? (
             <p className="mt-2 text-sm text-red-600">{error}</p>
           ) : null}
+        </section>
+
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h2 className="text-sm font-semibold tracking-tight">
+            {state.question
+              ? `Q${state.round}: ${state.question}`
+              : state.status === "generating"
+                ? "Generating question…"
+                : "Question"}
+          </h2>
+          <p className="mt-2 text-sm text-zinc-500">
+            {state.status === "generating"
+              ? "LLM is writing the next question (retries on failure)."
+              : state.answerWindowOpen
+                ? "Broadcast to all connected clients."
+                : "Waiting for the next round."}
+          </p>
         </section>
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">

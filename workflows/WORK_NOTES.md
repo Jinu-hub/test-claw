@@ -21,20 +21,21 @@
 - [x] `@callable openAnswers()` — Phase 2 체크포인트용 (워크플로 연동 전 임시)
 - [x] Host·Participant UI에 join / 이름 입력 / 답변·참가자 목록
 - **체크포인트:** 탭 2개에서 join → 참가자 목록 동시 갱신, submitAnswer가 state에 쌓임
-- **상태:** 체크포인트 대기
-- **테스트:**
-  1. `npm run dev` → `/` 탭 2개 + `/host` 탭 1개 (같은 `quiz-room`)
-  2. 참가자 각기 다른 이름으로 Join → Host에 목록 동시 표시
-  3. Host **Open answers** → 참가자가 답 제출 → Host **Answers this round**에 쌓임
-  4. Host **Close round** → 답변 창 닫힘 (추가 제출 거부)
+- **상태:** OK ✓
 
 ## Phase 3 — QuizWorkflow: 문제 생성 + 표시
-- [ ] `step.do("question-1"…"question-5")` + `Output.object` + `QuestionSchema`
-- [ ] question 단계에 **retries** 설정 (실제 재시도 가능)
-- [ ] `step.mergeAgentState`로 문제·`answering` 브로드캐스트
-- [ ] 고정 단계명 유지
+- [x] `step.do("question-1"…"question-5")` + `Output.object` + `QuestionSchema`
+- [x] question 단계에 **retries** (`limit: 5`, exponential)
+- [x] `step.mergeAgentState`로 문제·`answering` 브로드캐스트
+- [x] 고정 단계명 `question-N` 유지
+- [x] 라운드 사이 임시 `step.sleep("answer-window-N", 60s)` (Phase 4에서 waitForEvent로 교체)
 - **체크포인트:** 문제 생성 + 모든 화면 동시 표시; wrangler 재시작 후 같은 문제
-- **상태:** 대기
+- **상태:** 체크포인트 대기
+- **테스트:**
+  1. 참가자 join 후 Host **Start** (주제 입력)
+  2. `generating` → 곧 `Q1: …` 가 Host/Participant에 동시 표시
+  3. 60초 창 동안 답 제출 가능
+  4. (선택) 라운드 중 wrangler 종료→재시작 → 같은 Qn 유지
 
 ## Phase 4 — 답변 창: waitForEvent + 조기 종료
 - [ ] `waitForEvent("close-N", { timeout: 60s })`

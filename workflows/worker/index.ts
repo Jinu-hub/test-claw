@@ -4,8 +4,10 @@ import {
   type AgentWorkflowEvent,
   type AgentWorkflowStep,
 } from "agents/workflows";
+import { generateQuestion } from "./llm";
 import {
   initialQuizState,
+  type Question,
   type QuizState,
   TOTAL_ROUNDS,
 } from "./types";
@@ -18,24 +20,44 @@ type ConnectionPlayerState = {
   playerName?: string;
 };
 
+const ANSWER_WINDOW = "60 seconds" as const;
+
+const QUESTION_RETRIES = {
+  limit: 5,
+  delay: "3 seconds" as const,
+  backoff: "exponential" as const,
+};
+
 /** Workflow waitForEvent type for round N (Phase 4). */
 export function closeEventType(round: number): string {
   return `close-${round}`;
 }
 
+function questionStepName(round: number): string {
+  return `question-${round}`;
+}
+
 /**
- * Phase 1–2 scaffold — full 5-round loop lands in Phase 3–5.
- * Keep step names fixed (question-N / grade-N) when implementing.
+ * Quiz host workflow — fixed step names question-N / grade-N.
+ * Phase 3: generate + broadcast questions.
+ * Phase 4+: waitForEvent replaces sleep; Phase 5 adds grading.
  */
 export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
   async run(event: AgentWorkflowEvent<Params>, step: AgentWorkflowStep) {
     const topic = event.payload.topic;
+    const previousQuestions: string[] = [];
+    /** Kept in workflow memory (durable via step.do results) for Phase 5 grading. */
+    const roundKeys: Question[] = [];
 
     await step.mergeAgentState({
       status: "generating",
       topic,
       totalRounds: TOTAL_ROUNDS,
       round: 0,
+      question: null,
+      correctAnswer: null,
+      answerWindowOpen: false,
+      answerClosesAt: null,
       answers: [],
       roundHistory: [],
       finaleText: null,
@@ -43,8 +65,66 @@ export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
       published: false,
     });
 
-    // Phase 3+: question-1 … grade-5, waitForEvent, finale, waitForApproval
-    step.reportComplete({ topic, rounds: TOTAL_ROUNDS });
+    for (let round = 1; round <= TOTAL_ROUNDS; round++) {
+      const generated = await step.do(
+        questionStepName(round),
+        { retries: QUESTION_RETRIES },
+        async () => {
+          return generateQuestion(this.env.AI, {
+            topic,
+            round,
+            totalRounds: TOTAL_ROUNDS,
+            previousQuestions,
+          });
+        },
+      );
+
+      previousQuestions.push(generated.question);
+      roundKeys.push(generated);
+
+      const closesAt = Date.now() + 60_000;
+      await step.mergeAgentState({
+        status: "answering",
+        round,
+        question: generated.question,
+        // Hide key until Phase 5 reveal
+        correctAnswer: null,
+        answerWindowOpen: true,
+        answerClosesAt: closesAt,
+        answers: [],
+      });
+
+      // Phase 4 will replace this with waitForEvent(`close-${round}`, { timeout: 60s })
+      await step.sleep(`answer-window-${round}`, ANSWER_WINDOW);
+
+      await step.mergeAgentState({
+        answerWindowOpen: false,
+        answerClosesAt: null,
+        status: "grading",
+      });
+
+      // Phase 5: step.do(`grade-${round}`, …)
+
+      if (round < TOTAL_ROUNDS) {
+        await step.mergeAgentState({
+          status: "generating",
+          question: null,
+        });
+      }
+    }
+
+    await step.mergeAgentState({
+      status: "done",
+      question: null,
+      answerWindowOpen: false,
+      answerClosesAt: null,
+    });
+
+    await step.reportComplete({
+      topic,
+      rounds: TOTAL_ROUNDS,
+      questions: roundKeys.map((q) => q.question),
+    });
   }
 }
 
@@ -57,11 +137,11 @@ export class QuizAgent extends Agent<Env, QuizState> {
     result?: unknown,
   ) {
     console.log(workflowName, workflowId, "finished with result:", result);
-    // Scaffold workflow finishes immediately; return to lobby so Host can re-start.
-    if (this.state.status === "generating") {
+    if (this.state.workflowId === workflowId && this.state.status !== "published") {
       this.setState({
         ...this.state,
-        status: "lobby",
+        status: this.state.status === "done" ? "done" : this.state.status,
+        answerWindowOpen: false,
       });
     }
   }
