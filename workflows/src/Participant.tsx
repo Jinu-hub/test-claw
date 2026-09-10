@@ -148,6 +148,12 @@ export function Participant() {
               {secondsLeft}s left
             </p>
           ) : null}
+          {state.correctAnswer &&
+          (state.status === "reveal" || state.status === "done") ? (
+            <p className="mt-2 text-sm text-emerald-800">
+              Answer: <span className="font-medium">{state.correctAnswer}</span>
+            </p>
+          ) : null}
 
           {state.answerWindowOpen && joinedName ? (
             <div className="mt-4 space-y-2">
@@ -180,9 +186,30 @@ export function Participant() {
                   ? "Host started the quiz — waiting for the LLM…"
                   : state.status === "grading"
                     ? "Grading this round…"
-                    : "Waiting for the next question…"}
+                    : state.status === "reveal"
+                      ? "Round results are in — check the leaderboard."
+                      : "Waiting for the next question…"}
             </p>
           )}
+        </section>
+
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h2 className="text-sm font-semibold tracking-tight">Leaderboard</h2>
+          <ol className="mt-3 space-y-1 text-sm text-zinc-700">
+            {state.leaderboard.length === 0 && (
+              <li className="text-zinc-400">No scores yet.</li>
+            )}
+            {state.leaderboard.map((entry, i) => (
+              <li key={entry.name} className="flex justify-between gap-2">
+                <span>
+                  {i + 1}. {entry.name}
+                </span>
+                <span className="font-mono text-xs text-zinc-500">
+                  {entry.score} pts
+                </span>
+              </li>
+            ))}
+          </ol>
         </section>
       </div>
     </div>

@@ -4,11 +4,13 @@ import {
   type AgentWorkflowEvent,
   type AgentWorkflowStep,
 } from "agents/workflows";
-import { generateQuestion } from "./llm";
+import { generateQuestion, gradeAnswers, GRADE_RETRIES } from "./llm";
 import {
   initialQuizState,
+  type LeaderboardEntry,
   type Question,
   type QuizState,
+  type RoundSnapshot,
   TOTAL_ROUNDS,
 } from "./types";
 
@@ -37,6 +39,16 @@ function questionStepName(round: number): string {
   return `question-${round}`;
 }
 
+function gradeStepName(round: number): string {
+  return `grade-${round}`;
+}
+
+function buildLeaderboard(scores: Record<string, number>): LeaderboardEntry[] {
+  return Object.entries(scores)
+    .map(([name, score]) => ({ name, score }))
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+}
+
 type ClosePayload = {
   round: number;
   closedAt: number;
@@ -45,13 +57,13 @@ type ClosePayload = {
 
 /**
  * Quiz host workflow — fixed step names question-N / close-N / grade-N.
- * Phase 4: waitForEvent with 60s timeout; host can sendEvent early.
+ * Phase 5: LLM grading + leaderboard after each answer window.
  */
 export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
   async run(event: AgentWorkflowEvent<Params>, step: AgentWorkflowStep) {
     const topic = event.payload.topic;
     const previousQuestions: string[] = [];
-    /** Kept in workflow memory (durable via step.do results) for Phase 5 grading. */
+    /** Kept in workflow memory (durable via step.do results) for grading. */
     const roundKeys: Question[] = [];
 
     await step.mergeAgentState({
@@ -65,6 +77,7 @@ export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
       answerClosesAt: null,
       answers: [],
       roundHistory: [],
+      leaderboard: [],
       finaleText: null,
       winnerName: null,
       published: false,
@@ -92,7 +105,6 @@ export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
         status: "answering",
         round,
         question: generated.question,
-        // Hide key until Phase 5 reveal
         correctAnswer: null,
         answerWindowOpen: true,
         answerClosesAt: closesAt,
@@ -108,7 +120,6 @@ export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
         });
         closedBy = "host";
       } catch {
-        // Timeout: continue to grading without failing the workflow
         closedBy = "timeout";
       }
 
@@ -120,12 +131,55 @@ export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
 
       console.log(`round ${round} closed by ${closedBy}`);
 
-      // Phase 5: step.do(`grade-${round}`, …)
+      const graded = await step.do(
+        gradeStepName(round),
+        { retries: GRADE_RETRIES },
+        async () => {
+          const snapshot = await this.agent.getGradingSnapshot();
+          const gradeResult = await gradeAnswers(this.env.AI, {
+            question: generated.question,
+            correctAnswer: generated.correctAnswer,
+            answers: snapshot.answers,
+          });
+
+          const scores = { ...snapshot.scores };
+          for (const g of gradeResult.grades) {
+            scores[g.playerName] = (scores[g.playerName] ?? 0) + g.points;
+          }
+
+          const roundSnapshot: RoundSnapshot = {
+            round,
+            question: generated.question,
+            correctAnswer: generated.correctAnswer,
+            grades: gradeResult.grades,
+          };
+
+          return {
+            correctAnswer: generated.correctAnswer,
+            scores,
+            leaderboard: buildLeaderboard(scores),
+            roundHistory: [...snapshot.roundHistory, roundSnapshot],
+            grades: gradeResult.grades,
+          };
+        },
+      );
+
+      await step.mergeAgentState({
+        status: "reveal",
+        correctAnswer: graded.correctAnswer,
+        scores: graded.scores,
+        leaderboard: graded.leaderboard,
+        roundHistory: graded.roundHistory,
+      });
+
+      // Brief pause so clients can see the reveal before the next question.
+      await step.sleep(`reveal-${round}`, "8 seconds");
 
       if (round < TOTAL_ROUNDS) {
         await step.mergeAgentState({
           status: "generating",
           question: null,
+          correctAnswer: null,
         });
       }
     }
@@ -147,6 +201,15 @@ export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
 
 export class QuizAgent extends Agent<Env, QuizState> {
   initialState: QuizState = initialQuizState();
+
+  /** Called from QuizWorkflow after the answer window closes. */
+  async getGradingSnapshot() {
+    return {
+      answers: this.state.answers,
+      scores: this.state.scores,
+      roundHistory: this.state.roundHistory,
+    };
+  }
 
   async onWorkflowComplete(
     workflowName: string,

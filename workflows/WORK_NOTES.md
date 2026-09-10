@@ -37,17 +37,18 @@
 - [x] Host **Close round early** → `sendWorkflowEvent` 조기 종료
 - [x] 타임아웃 시 try/catch로 자동 진행 (워크플로 실패 방지)
 - **체크포인트:** 한 라운드 자동 종료 + 다른 라운드 조기 종료
-- **상태:** 체크포인트 대기
-- **테스트:**
-  1. Start 후 라운드 1은 60초 기다려 자동 닫힘 확인
-  2. 라운드 2는 Host **Close round early**로 즉시 다음 단계
+- **상태:** OK ✓
 
 ## Phase 5 — 채점 + 순위표 (5라운드)
-- [ ] `step.do("grade-N")` LLM 유사 답 채점
-- [ ] 정답 공개 + leaderboard 갱신 (`mergeAgentState`)
-- [ ] 라운드 1–5 전체 루프
+- [x] `step.do("grade-N")` LLM 유사 답 채점 (`GradeResultSchema`, retries)
+- [x] 정답 공개 + scores / leaderboard / roundHistory 갱신
+- [x] 라운드 1–5 전체 루프 + reveal 짧은 pause
 - **체크포인트:** `Bong Joon-ho` ≈ `Bong Joon Ho` 점수; 재실행 시 점수 불변
-- **상태:** 대기
+- **상태:** 체크포인트 대기
+- **테스트:**
+  1. 한 참가자는 정답, 다른 참가자는 하이픈/띄어쓰기만 다른 유사 답 제출
+  2. reveal에서 둘 다 점수 받는지 + leaderboard 갱신 확인
+  3. (선택) grade 직후 wrangler 재시작 → 같은 점수 유지
 
 ## Phase 6 — Finale + waitForApproval + 공개 페이지
 - [ ] `step.do("finale")` 우승자 발표문

@@ -1,8 +1,21 @@
 import { generateText, Output } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
-import { QuestionSchema, type Question } from "./types";
+import type { z } from "zod";
+import {
+  GradeResultSchema,
+  QuestionSchema,
+  type GradeResult,
+  type Question,
+  type SubmittedAnswer,
+} from "./types";
 
 const MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct" as const;
+
+export const GRADE_RETRIES = {
+  limit: 5,
+  delay: "3 seconds" as const,
+  backoff: "exponential" as const,
+};
 
 function extractJsonObject(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -13,6 +26,44 @@ function extractJsonObject(text: string): unknown {
     throw new Error("No JSON object found in model response");
   }
   return JSON.parse(candidate.slice(start, end + 1));
+}
+
+async function generateStructured<T>(
+  ai: Ai,
+  schema: z.ZodType<T>,
+  prompt: string,
+  rawJsonHint: string,
+): Promise<T> {
+  const workersai = createWorkersAI({ binding: ai });
+  const model = workersai(MODEL);
+
+  try {
+    const { output } = await generateText({
+      model,
+      prompt,
+      output: Output.object({ schema }),
+    });
+    if (output == null) {
+      throw new Error("No object generated from Output.object");
+    }
+    return schema.parse(output);
+  } catch (structuredError) {
+    const { text } = await generateText({
+      model,
+      prompt: [
+        prompt,
+        "",
+        "Respond with a single raw JSON object only:",
+        rawJsonHint,
+        `Previous structured error: ${
+          structuredError instanceof Error
+            ? structuredError.message
+            : String(structuredError)
+        }`,
+      ].join("\n"),
+    });
+    return schema.parse(extractJsonObject(text));
+  }
 }
 
 /**
@@ -28,9 +79,6 @@ export async function generateQuestion(
     previousQuestions: string[];
   },
 ): Promise<Question> {
-  const workersai = createWorkersAI({ binding: ai });
-  const model = workersai(MODEL);
-
   const previous =
     args.previousQuestions.length > 0
       ? `Previously asked (do NOT repeat):\n- ${args.previousQuestions.join("\n- ")}`
@@ -47,32 +95,77 @@ export async function generateQuestion(
     `Return only the structured object.`,
   ].join("\n");
 
-  try {
-    const { output } = await generateText({
-      model,
-      prompt,
-      output: Output.object({ schema: QuestionSchema }),
-    });
-    if (output == null) {
-      throw new Error("No object generated from Output.object");
-    }
-    return QuestionSchema.parse(output);
-  } catch (structuredError) {
-    // Fallback: plain JSON text — still throw on failure so step.do retries.
-    const { text } = await generateText({
-      model,
-      prompt: [
-        prompt,
-        "",
-        "Respond with a single raw JSON object only:",
-        '{"question":"...","correctAnswer":"..."}',
-        `Previous structured error: ${
-          structuredError instanceof Error
-            ? structuredError.message
-            : String(structuredError)
-        }`,
-      ].join("\n"),
-    });
-    return QuestionSchema.parse(extractJsonObject(text));
+  return generateStructured(
+    ai,
+    QuestionSchema,
+    prompt,
+    '{"question":"...","correctAnswer":"..."}',
+  );
+}
+
+/**
+ * Grade free-text answers against the recorded correct answer.
+ * Accept near-matches (punctuation, hyphenation, minor spelling).
+ */
+export async function gradeAnswers(
+  ai: Ai,
+  args: {
+    question: string;
+    correctAnswer: string;
+    answers: SubmittedAnswer[];
+  },
+): Promise<GradeResult> {
+  if (args.answers.length === 0) {
+    return { grades: [] };
   }
+
+  const submissions = args.answers
+    .map((a) => `- ${a.playerName}: ${JSON.stringify(a.text)}`)
+    .join("\n");
+
+  const prompt = [
+    `You are grading a live trivia quiz round.`,
+    `Question: ${args.question}`,
+    `Official correct answer: ${args.correctAnswer}`,
+    ``,
+    `Player submissions:`,
+    submissions,
+    ``,
+    `For EACH player, decide if their answer is correct enough.`,
+    `Treat answers as correct when they clearly mean the same thing despite`,
+    `hyphens, spacing, capitalization, or minor spelling differences`,
+    `(example: "Bong Joon-ho" vs "Bong Joon Ho" should both score).`,
+    `points: 1 if correct/close enough, otherwise 0.`,
+    `Include every playerName from the submissions exactly once.`,
+    `Return only the structured grades object.`,
+  ].join("\n");
+
+  const result = await generateStructured(
+    ai,
+    GradeResultSchema,
+    prompt,
+    '{"grades":[{"playerName":"...","correct":true,"points":1,"reason":"..."}]}',
+  );
+
+  const byName = new Map(result.grades.map((g) => [g.playerName, g]));
+  const grades = args.answers.map((a) => {
+    const existing = byName.get(a.playerName);
+    if (existing) {
+      const awarded =
+        existing.correct || existing.points > 0 ? Math.max(1, existing.points) : 0;
+      return {
+        ...existing,
+        points: awarded,
+        correct: awarded > 0,
+      };
+    }
+    return {
+      playerName: a.playerName,
+      correct: false,
+      points: 0,
+      reason: "No grade returned for this player",
+    };
+  });
+
+  return GradeResultSchema.parse({ grades });
 }

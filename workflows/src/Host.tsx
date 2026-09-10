@@ -115,15 +115,46 @@ export function Host() {
               ? `Q${state.round}: ${state.question}`
               : state.status === "generating"
                 ? "Generating question…"
-                : "Question"}
+                : state.status === "grading"
+                  ? "Grading…"
+                  : "Question"}
           </h2>
+          {state.correctAnswer &&
+          (state.status === "reveal" || state.status === "done") ? (
+            <p className="mt-2 text-sm text-emerald-800">
+              Answer: <span className="font-medium">{state.correctAnswer}</span>
+            </p>
+          ) : null}
           <p className="mt-2 text-sm text-zinc-500">
             {state.status === "generating"
               ? "LLM is writing the next question (retries on failure)."
-              : state.answerWindowOpen
-                ? "Broadcast to all connected clients."
-                : "Waiting for the next round."}
+              : state.status === "grading"
+                ? "LLM is scoring free-text answers (near matches count)."
+                : state.status === "reveal"
+                  ? "Round results revealed — leaderboard updated."
+                  : state.answerWindowOpen
+                    ? "Broadcast to all connected clients."
+                    : "Waiting for the next round."}
           </p>
+        </section>
+
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h2 className="text-sm font-semibold tracking-tight">Leaderboard</h2>
+          <ol className="mt-3 space-y-1 text-sm text-zinc-700">
+            {state.leaderboard.length === 0 && (
+              <li className="text-zinc-400">No scores yet.</li>
+            )}
+            {state.leaderboard.map((entry, i) => (
+              <li key={entry.name} className="flex justify-between gap-2">
+                <span>
+                  {i + 1}. {entry.name}
+                </span>
+                <span className="font-mono text-xs text-zinc-500">
+                  {entry.score} pts
+                </span>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
@@ -153,15 +184,38 @@ export function Host() {
             {state.answers.length === 0 && (
               <li className="text-zinc-400">No answers yet.</li>
             )}
-            {state.answers.map((a) => (
-              <li
-                key={a.playerName}
-                className="rounded-md border border-zinc-100 bg-zinc-50 px-3 py-2"
-              >
-                <span className="font-medium">{a.playerName}</span>
-                <span className="mt-0.5 block text-zinc-600">{a.text}</span>
-              </li>
-            ))}
+            {state.answers.map((a) => {
+              const grade = state.roundHistory
+                .find((r) => r.round === state.round)
+                ?.grades.find((g) => g.playerName === a.playerName);
+              return (
+                <li
+                  key={a.playerName}
+                  className="rounded-md border border-zinc-100 bg-zinc-50 px-3 py-2"
+                >
+                  <div className="flex justify-between gap-2">
+                    <span className="font-medium">{a.playerName}</span>
+                    {grade ? (
+                      <span
+                        className={`text-xs font-medium ${
+                          grade.points > 0
+                            ? "text-emerald-700"
+                            : "text-zinc-400"
+                        }`}
+                      >
+                        {grade.points > 0 ? `+${grade.points}` : "0"}
+                      </span>
+                    ) : null}
+                  </div>
+                  <span className="mt-0.5 block text-zinc-600">{a.text}</span>
+                  {grade?.reason ? (
+                    <span className="mt-1 block text-xs text-zinc-400">
+                      {grade.reason}
+                    </span>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         </section>
       </div>
