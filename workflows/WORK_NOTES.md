@@ -44,18 +44,19 @@
 - [x] 정답 공개 + scores / leaderboard / roundHistory 갱신
 - [x] 라운드 1–5 전체 루프 + reveal 짧은 pause
 - **체크포인트:** `Bong Joon-ho` ≈ `Bong Joon Ho` 점수; 재실행 시 점수 불변
-- **상태:** 체크포인트 대기
-- **테스트:**
-  1. 한 참가자는 정답, 다른 참가자는 하이픈/띄어쓰기만 다른 유사 답 제출
-  2. reveal에서 둘 다 점수 받는지 + leaderboard 갱신 확인
-  3. (선택) grade 직후 wrangler 재시작 → 같은 점수 유지
+- **상태:** OK ✓
 
 ## Phase 6 — Finale + waitForApproval + 공개 페이지
-- [ ] `step.do("finale")` 우승자 발표문
-- [ ] `waitForApproval()` 후 게시
-- [ ] `/results` 공개 결과
+- [x] `step.do("finale")` 우승자 발표문 (`FinaleSchema`)
+- [x] `waitForApproval()` 후 `published` 게시
+- [x] `/results` 공개 결과 (승인 전에는 미표시)
+- [x] Host **Approve & publish** → `approveWorkflow`
 - **체크포인트:** 승인 전 미게시 / 승인 후 published
-- **상태:** 대기
+- **상태:** 체크포인트 대기
+- **테스트:**
+  1. 5라운드 종료 → status `awaiting-publish` + finale 문구
+  2. `/results`는 아직 비공개 메시지
+  3. Host **Approve & publish** → `/results`에 우승자·순위표 표시
 
 ## Phase 7 — UI + Durability E2E
 - [ ] Host / Participant / Results UI 완성

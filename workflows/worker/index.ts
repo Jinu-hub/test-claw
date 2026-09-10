@@ -4,7 +4,7 @@ import {
   type AgentWorkflowEvent,
   type AgentWorkflowStep,
 } from "agents/workflows";
-import { generateQuestion, gradeAnswers, GRADE_RETRIES } from "./llm";
+import { generateQuestion, gradeAnswers, generateFinale, GRADE_RETRIES } from "./llm";
 import {
   initialQuizState,
   type LeaderboardEntry,
@@ -56,8 +56,8 @@ type ClosePayload = {
 };
 
 /**
- * Quiz host workflow — fixed step names question-N / close-N / grade-N.
- * Phase 5: LLM grading + leaderboard after each answer window.
+ * Quiz host workflow — fixed step names question-N / close-N / grade-N / finale.
+ * Phase 6: finale announcement + waitForApproval before public publish.
  */
 export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
   async run(event: AgentWorkflowEvent<Params>, step: AgentWorkflowStep) {
@@ -184,17 +184,45 @@ export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
       }
     }
 
+    const finale = await step.do(
+      "finale",
+      { retries: GRADE_RETRIES },
+      async () => {
+        const snapshot = await this.agent.getGradingSnapshot();
+        return generateFinale(this.env.AI, {
+          topic,
+          leaderboard: snapshot.leaderboard ?? buildLeaderboard(snapshot.scores),
+        });
+      },
+    );
+
     await step.mergeAgentState({
-      status: "done",
+      status: "awaiting-publish",
       question: null,
+      correctAnswer: null,
       answerWindowOpen: false,
       answerClosesAt: null,
+      finaleText: finale.announcement,
+      winnerName: finale.winnerName,
+      published: false,
+    });
+
+    await this.waitForApproval(step, {
+      stepName: "wait-for-publish",
+      timeout: "7 days",
+    });
+
+    await step.mergeAgentState({
+      status: "published",
+      published: true,
     });
 
     await step.reportComplete({
       topic,
       rounds: TOTAL_ROUNDS,
       questions: roundKeys.map((q) => q.question),
+      winnerName: finale.winnerName,
+      published: true,
     });
   }
 }
@@ -202,12 +230,13 @@ export class QuizWorkflow extends AgentWorkflow<QuizAgent, Params> {
 export class QuizAgent extends Agent<Env, QuizState> {
   initialState: QuizState = initialQuizState();
 
-  /** Called from QuizWorkflow after the answer window closes. */
+  /** Called from QuizWorkflow after the answer window closes / for finale. */
   async getGradingSnapshot() {
     return {
       answers: this.state.answers,
       scores: this.state.scores,
       roundHistory: this.state.roundHistory,
+      leaderboard: this.state.leaderboard,
     };
   }
 
@@ -357,31 +386,24 @@ export class QuizAgent extends Agent<Env, QuizState> {
     return { round: r, answers: this.state.answers.length };
   }
 
+  /** Approve publish — wakes waitForApproval; workflow then sets published. */
   @callable()
   async publishResults() {
-    if (this.state.status !== "awaiting-publish" && !this.state.finaleText) {
-      // Phase 2: allow host to mark published for UI wiring; Phase 6 gates on approval.
-      this.setState({
-        ...this.state,
-        published: true,
-        status: "published",
-      });
-      return { published: true };
+    if (this.state.status !== "awaiting-publish") {
+      throw new Error("Results are not ready to publish yet");
+    }
+    if (!this.state.workflowId) {
+      throw new Error("No active quiz workflow");
     }
 
-    if (this.state.workflowId) {
-      await this.approveWorkflow(this.state.workflowId, {
-        reason: "Host published quiz results",
-      });
-    }
-
-    this.setState({
-      ...this.state,
-      published: true,
-      status: "published",
+    await this.approveWorkflow(this.state.workflowId, {
+      reason: "Host published quiz results",
+      metadata: {
+        winnerName: this.state.winnerName,
+      },
     });
 
-    return { published: true };
+    return { approved: true };
   }
 
   @callable()

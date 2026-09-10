@@ -69,10 +69,11 @@ export function Host() {
             </button>
             <button
               type="button"
+              disabled={state.status !== "awaiting-publish"}
               onClick={() => run(() => agent.stub.publishResults())}
-              className="inline-flex items-center rounded-full border border-zinc-300 bg-white px-4 py-1.5 text-sm font-medium transition hover:bg-zinc-100"
+              className="inline-flex items-center rounded-full border border-zinc-300 bg-white px-4 py-1.5 text-sm font-medium transition hover:bg-zinc-100 disabled:opacity-40"
             >
-              Publish
+              Approve &amp; publish
             </button>
             <button
               type="button"
@@ -106,6 +107,33 @@ export function Host() {
           </p>
           {error ? (
             <p className="mt-2 text-sm text-red-600">{error}</p>
+          ) : null}
+          {state.status === "awaiting-publish" ? (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <p className="font-medium">Finale ready — approve to publish</p>
+              {state.winnerName ? (
+                <p className="mt-1">Winner: {state.winnerName}</p>
+              ) : null}
+              {state.finaleText ? (
+                <p className="mt-1 whitespace-pre-wrap text-amber-800/90">
+                  {state.finaleText}
+                </p>
+              ) : null}
+              <a
+                href="/results"
+                className="mt-2 inline-block text-xs font-medium underline"
+              >
+                Open /results
+              </a>
+            </div>
+          ) : null}
+          {state.published ? (
+            <p className="mt-3 text-sm text-emerald-700">
+              Published.{" "}
+              <a href="/results" className="underline">
+                View public results
+              </a>
+            </p>
           ) : null}
         </section>
 

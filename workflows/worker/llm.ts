@@ -2,9 +2,12 @@ import { generateText, Output } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import type { z } from "zod";
 import {
+  FinaleSchema,
   GradeResultSchema,
   QuestionSchema,
+  type Finale,
   type GradeResult,
+  type LeaderboardEntry,
   type Question,
   type SubmittedAnswer,
 } from "./types";
@@ -168,4 +171,43 @@ export async function gradeAnswers(
   });
 
   return GradeResultSchema.parse({ grades });
+}
+
+/**
+ * Write a short winner announcement for the finale step.
+ */
+export async function generateFinale(
+  ai: Ai,
+  args: {
+    topic: string;
+    leaderboard: LeaderboardEntry[];
+  },
+): Promise<Finale> {
+  const board =
+    args.leaderboard.length > 0
+      ? args.leaderboard
+          .map((e, i) => `${i + 1}. ${e.name} — ${e.score} pts`)
+          .join("\n")
+      : "No scored players (everyone tied at 0).";
+
+  const top = args.leaderboard[0];
+  const prompt = [
+    `You are wrapping up a live trivia quiz show.`,
+    `Topic: ${args.topic}`,
+    `Final leaderboard:`,
+    board,
+    ``,
+    `Write a short, lively winner announcement (2–4 sentences).`,
+    top
+      ? `The winner should be ${top.name} (unless the board is empty/tied at zero — then pick a friendly tie message and use "Everyone" as winnerName).`
+      : `There were no scores — congratulate everyone for playing and set winnerName to "Everyone".`,
+    `Return only the structured object with announcement and winnerName.`,
+  ].join("\n");
+
+  return generateStructured(
+    ai,
+    FinaleSchema,
+    prompt,
+    '{"announcement":"...","winnerName":"..."}',
+  );
 }
