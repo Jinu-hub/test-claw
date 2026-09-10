@@ -1,6 +1,7 @@
 import { useAgent } from "agents/react";
 import { useState } from "react";
 import { initialQuizState, type QuizState } from "../worker/types";
+import { RoomNav } from "./RoomNav";
 import { useSecondsLeft } from "./useSecondsLeft";
 
 export function Host() {
@@ -34,11 +35,13 @@ export function Host() {
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <div className="mx-auto max-w-2xl space-y-4 px-4 py-10">
+        <RoomNav current="host" />
+
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <h1 className="text-lg font-semibold tracking-tight">Quiz Host</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Start the workflow to generate questions. Players see each round at
-            the same time.
+            Open Play in two other tabs, then Start. Use Close round early on one
+            round and let another time out.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -119,12 +122,6 @@ export function Host() {
                   {state.finaleText}
                 </p>
               ) : null}
-              <a
-                href="/results"
-                className="mt-2 inline-block text-xs font-medium underline"
-              >
-                Open /results
-              </a>
             </div>
           ) : null}
           {state.published ? (

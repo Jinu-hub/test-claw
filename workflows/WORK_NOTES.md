@@ -28,7 +28,7 @@
 - [x] question 단계에 **retries** (`limit: 5`, exponential)
 - [x] `step.mergeAgentState`로 문제·`answering` 브로드캐스트
 - [x] 고정 단계명 `question-N` 유지
-- [x] 라운드 사이 임시 `step.sleep("answer-window-N", 60s)` (Phase 4에서 waitForEvent로 교체)
+- [x] 라운드 사이 임시 `step.sleep` → Phase 4에서 `waitForEvent`로 교체됨
 - **체크포인트:** 문제 생성 + 모든 화면 동시 표시; wrangler 재시작 후 같은 문제
 - **상태:** OK ✓
 
@@ -52,15 +52,19 @@
 - [x] `/results` 공개 결과 (승인 전에는 미표시)
 - [x] Host **Approve & publish** → `approveWorkflow`
 - **체크포인트:** 승인 전 미게시 / 승인 후 published
-- **상태:** 체크포인트 대기
-- **테스트:**
-  1. 5라운드 종료 → status `awaiting-publish` + finale 문구
-  2. `/results`는 아직 비공개 메시지
-  3. Host **Approve & publish** → `/results`에 우승자·순위표 표시
+- **상태:** OK ✓
 
 ## Phase 7 — UI + Durability E2E
-- [ ] Host / Participant / Results UI 완성
-- [ ] 탭 3개(진행자 1 + 참가자 2) 동시 표시
-- [ ] wrangler 재시작 후 문제·순위표 유지
+- [x] Host / Participant / Results UI + 공통 `RoomNav`
+- [x] 참가자 자동 re-join (localStorage) — 새로고침/재시작 후 답변 가능
+- [x] E2E / durability 테스트 절차 문서화
 - **체크포인트:** 과제 테스트 방법 전부 통과
-- **상태:** 대기
+- **상태:** 체크포인트 대기
+- **E2E 테스트:**
+  1. `cd workflows && npm run dev`
+  2. 탭 3개: `/host` + `/` (jinu) + `/` (momo)
+  3. Join 후 Host **Start** → 문제가 세 화면에 동시 표시
+  4. 유사 답 채점: 정답 `Bong Joon Ho`일 때 `Bong Joon-ho`도 점수
+  5. 라운드 1은 60초 자동 종료, 라운드 2는 **Close round early**
+  6. 라운드 중간에 wrangler 종료→재시작 → 같은 문제·순위표 유지
+  7. 5라운드 후 `/results`는 비공개 → Host **Approve & publish** → 공개

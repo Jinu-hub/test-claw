@@ -1,6 +1,7 @@
 import { useAgent } from "agents/react";
 import { useState } from "react";
 import { initialQuizState, type QuizState } from "../worker/types";
+import { RoomNav } from "./RoomNav";
 
 /** Public results — only shows the finale after host approval. */
 export function Results() {
@@ -17,6 +18,8 @@ export function Results() {
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <div className="mx-auto max-w-2xl space-y-4 px-4 py-10">
+        <RoomNav current="results" />
+
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <h1 className="text-lg font-semibold tracking-tight">Quiz Results</h1>
           <p className="mt-1 text-sm text-zinc-500">
