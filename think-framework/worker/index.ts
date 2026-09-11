@@ -86,6 +86,12 @@ export class CoachAgent extends Think<Env, State> {
               "Persistent memory rules:",
               "- When the user shares body stats, injuries/limitations, or goals, immediately save them with set_context on the memory block.",
               "- Always consult memory before planning workouts so injuries and goals shape the plan.",
+              "",
+              "Skill rules (on-demand guides in the skills context):",
+              "- When the user asks about squat form, running plans, or stretching/mobility, load_context the matching skill first.",
+              "- Available skill keys: squat-form.md, running-program.md, stretching.md.",
+              "- After you finish answering from a skill, unload_context it so the prompt stays lean.",
+              "- Do not keep skills loaded across unrelated turns.",
             ].join("\n");
           },
         },
@@ -100,7 +106,12 @@ export class CoachAgent extends Think<Env, State> {
         maxTokens: 10_000,
       })
       .withContext("skills", {
-        description: "Reference documents on demand.",
+        description: [
+          "On-demand training guides. Use load_context / unload_context.",
+          "squat-form.md — squat setup, depth, faults, knee-friendly cues.",
+          "running-program.md — 5km progression, weekly structure, pacing.",
+          "stretching.md — warm-up mobility and post-workout stretching.",
+        ].join(" "),
         provider: new R2SkillProvider(this.env.SKILLS, { prefix: "skills/" }),
       });
   }

@@ -24,14 +24,15 @@
 - [x] description에 `set_context`로 저장하라는 힌트 포함
 - [x] soul에 memory 저장·참조 규칙 추가
 - **체크포인트:** 체중·무릎·5km 목표 전달 → Clear/새 브라우저에서도 반영된 계획
-- **상태:** 체크포인트 대기
+- **상태:** OK ✓
 
 ## Phase 4 — R2 on-demand skills
-- [ ] `R2SkillProvider` 연결 (`SKILLS`, prefix `skills/`)
-- [ ] R2에 가이드 ≥3 업로드 (`squat-form.md`, `running-program.md`, `stretching.md` 등)
-- [ ] soul에 load → 답변 → unload 지시
+- [x] `R2SkillProvider` 연결 (`SKILLS`, prefix `skills/`)
+- [x] R2에 가이드 ≥3 업로드 (`squat-form.md`, `running-program.md`, `stretching.md`)
+- [x] soul에 load → 답변 → unload 지시
 - **체크포인트:** 스쿼트 자세 질문 시 load → 답변 → unload
-- **상태:** 대기
+- **상태:** 체크포인트 대기
+- **참고:** 로컬 원본은 `skills/*.md`, R2 키는 `skills/<name>.md` (`jinu-skills` 버킷)
 
 ## Phase 5 — 런타임 확장 도구 (1RM)
 - [ ] `createExtensionTools` + `extensionLoader = this.env.LOADER`
