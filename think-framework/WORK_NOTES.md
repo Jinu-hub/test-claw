@@ -9,14 +9,15 @@
 - [x] UI `useAgent` 에이전트명 + 타입을 `CoachAgent`로 맞춤
 - [x] 데모용 `getWeather` 제거 (확장 도구만 유지 준비)
 - **체크포인트:** `tsc -b` 통과 + `npm run cf-typegen` 후 `CoachAgent` 타입 확인
-- **상태:** 체크포인트 대기
+- **상태:** OK ✓
 
 ## Phase 2 — soul 성격 + 워크스페이스 로깅 지시
-- [ ] `configureSession`의 `soul` — 격려하되 핑계 불허 / 훈련 피드백 질문 / 내일 집중 운동으로 마무리
-- [ ] soul(또는 동일 컨텍스트)에 워크스페이스 지시: 운동 보고 시 `logs/<date>.md` 기록, `plan.md` 최신 유지, 과거 질문 시 파일 읽기
+- [x] `configureSession`의 `soul` — 격려하되 핑계 불허 / 훈련 피드백 질문 / 내일 집중 운동으로 마무리
+- [x] soul(또는 동일 컨텍스트)에 워크스페이스 지시: 운동 보고 시 `logs/<date>.md` 기록, `plan.md` 최신 유지, 과거 질문 시 파일 읽기
 - [ ] 내장 workspace 도구가 동작하는지 확인 (별도 도구 구현 불필요)
 - **체크포인트:** 채팅에서 코치 톤 확인 + “오늘 스쿼트…” 보고 후 `logs/<date>.md` / `plan.md` 생성
-- **상태:** 대기
+- **상태:** 체크포인트 대기
+- **참고:** `jinu-skills` R2 버킷 미존재로 `npm run dev`가 실패했음 → 계정에 버킷 생성 완료 (2026-09-11)
 
 ## Phase 3 — 영속 memory
 - [ ] 쓰기 가능한 `memory` 컨텍스트 블록 (신체 / 부상 / 목표)

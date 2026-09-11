@@ -58,18 +58,36 @@ export class CoachAgent extends Think<Env, State> {
     return await this.workspace.readFile(path);
   }
 
-  // Phase 2+ will replace soul / memory / skills content.
-  // Kept as minimal placeholders so configureSession wiring stays intact.
   configureSession(session: Session) {
     return session
       .withContext("soul", {
         provider: {
           async get() {
-            return "You are a fitness coach. (Personality TBD in Phase 2.)";
+            const today = new Intl.DateTimeFormat("en-CA", {
+              timeZone: "Asia/Seoul",
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            }).format(new Date()); // YYYY-MM-DD
+
+            return [
+              "You are a personal fitness coach.",
+              "Encourage hard work, but never accept excuses.",
+              "After every workout report, ask how the session felt (energy, form, pain, effort).",
+              "Always end your reply by naming one focus for tomorrow's training.",
+              "",
+              `Today's date is ${today} (Asia/Seoul). Never ask the user for today's date.`,
+              "",
+              "Workspace rules (use built-in workspace file tools):",
+              `- Whenever the user reports a workout, write or append it to logs/${today}.md.`,
+              "- After every workout report, also create or update plan.md at the workspace root with this week's schedule (including tomorrow's focus). If plan.md is missing, create it — never just tell the user it is missing.",
+              "- When asked what they did on a past day or this week, read the matching logs/*.md (and plan.md if useful) before answering — do not guess from memory alone.",
+            ].join("\n");
           },
         },
       })
       .withContext("memory", {
+        // Phase 3 will specialize body / injuries / goals.
         description: "Things to remember about the user across convos.",
         maxTokens: 10_000,
       })
