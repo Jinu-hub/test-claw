@@ -2,7 +2,7 @@ import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { useState } from "react";
-import type { ThinkAgent } from "../worker";
+import type { CoachAgent } from "../worker";
 
 type FileEntry = {
   path: string;
@@ -25,8 +25,8 @@ function App() {
   } | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
 
-  const agent = useAgent<ThinkAgent, AgentState>({
-    agent: "ThinkAgent",
+  const agent = useAgent<CoachAgent, AgentState>({
+    agent: "CoachAgent",
     onStateUpdate: setAgentState,
   });
 
@@ -164,7 +164,7 @@ function App() {
       <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
           <h1 className="shrink-0 text-sm font-semibold tracking-tight">
-            🧠 Think Agent
+            🏋️ Fitness Coach
           </h1>
 
           <form onSubmit={handleSubmit} className="flex flex-1 gap-2">

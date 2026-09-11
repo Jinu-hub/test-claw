@@ -27,8 +27,8 @@
 	"durable_objects": {
 		"bindings": [
 			{
-				"class_name": "ThinkAgent",
-				"name": "ThinkAgent"
+				"class_name": "CoachAgent",
+				"name": "CoachAgent"
 			}
 		]
 	},
@@ -37,6 +37,15 @@
 			"tag": "1",
 			"new_sqlite_classes": [
 				"ThinkAgent"
+			]
+		},
+		{
+			"tag": "2",
+			"renamed_classes": [
+				{
+					"from": "ThinkAgent",
+					"to": "CoachAgent"
+				}
 			]
 		}
 	],
