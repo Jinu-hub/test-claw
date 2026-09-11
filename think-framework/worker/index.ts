@@ -82,13 +82,21 @@ export class CoachAgent extends Think<Env, State> {
               `- Whenever the user reports a workout, write or append it to logs/${today}.md.`,
               "- After every workout report, also create or update plan.md at the workspace root with this week's schedule (including tomorrow's focus). If plan.md is missing, create it — never just tell the user it is missing.",
               "- When asked what they did on a past day or this week, read the matching logs/*.md (and plan.md if useful) before answering — do not guess from memory alone.",
+              "",
+              "Persistent memory rules:",
+              "- When the user shares body stats, injuries/limitations, or goals, immediately save them with set_context on the memory block.",
+              "- Always consult memory before planning workouts so injuries and goals shape the plan.",
             ].join("\n");
           },
         },
       })
       .withContext("memory", {
-        // Phase 3 will specialize body / injuries / goals.
-        description: "Things to remember about the user across convos.",
+        description: [
+          "Persistent athlete profile across conversations.",
+          "Store and update: body stats (weight, height, etc.), injuries/limitations, and training goals.",
+          "Use set_context whenever the user shares or changes any of these facts.",
+          "Example: weight 75kg, left knee issue, goal run 5km under 30 minutes.",
+        ].join(" "),
         maxTokens: 10_000,
       })
       .withContext("skills", {
