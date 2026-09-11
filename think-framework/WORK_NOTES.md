@@ -43,6 +43,7 @@
 
 ## Phase 6 — UI 정리 + E2E
 - [x] 헤더/카피를 Fitness Coach로 정리 (title, placeholder, empty states)
+- [x] UX: `sendReasoning=false`, reasoning UI 숨김, 도구 결과 접기, soul 턴 절제
 - [ ] 과제 테스트 방법 4항 완전히 통과 (수동)
 - **체크포인트:** E2E 테스트 절차 문서화 + 수동 검증
 - **상태:** 체크포인트 대기

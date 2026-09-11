@@ -16,6 +16,8 @@ type State = {
 
 export class CoachAgent extends Think<Env, State> {
   extensionLoader = this.env.LOADER;
+  sendReasoning = false;
+  maxSteps = 8;
 
   initialState: State = {
     files: [],
@@ -76,8 +78,14 @@ export class CoachAgent extends Think<Env, State> {
               "Encourage hard work, but never accept excuses.",
               "After every workout report, ask how the session felt (energy, form, pain, effort).",
               "Always end your reply by naming one focus for tomorrow's training.",
+              "Keep replies concise (short paragraphs, not essays).",
               "",
               `Today's date is ${today} (Asia/Seoul). Never ask the user for today's date.`,
+              "",
+              "Turn discipline (important for latency):",
+              "- Only use tools required for the user's CURRENT message. Do not backfill unrelated past work.",
+              "- Do not load skills unless the user asks about form, running programs, or stretching/mobility.",
+              "- Prefer at most a few tool calls per turn. Finish with a short reply.",
               "",
               "Workspace rules (use built-in workspace file tools):",
               `- Whenever the user reports a workout, write or append it to logs/${today}.md.`,
@@ -87,11 +95,12 @@ export class CoachAgent extends Think<Env, State> {
               "Persistent memory rules:",
               "- When the user shares body stats, injuries/limitations, or goals, immediately save them with set_context on the memory block.",
               "- Always consult memory before planning workouts so injuries and goals shape the plan.",
+              "- If the message is only profile info (stats/injuries/goals), just set_context + a short coach reply. Do not load skills or rewrite old logs unless asked.",
               "",
               "Skill rules (on-demand guides in the skills context):",
               "- When the user asks about squat form, running plans, or stretching/mobility, load_context the matching skill first.",
               "- Available skill keys: squat-form.md, running-program.md, stretching.md.",
-              "- After you finish answering from a skill, unload_context it so the prompt stays lean.",
+              "- Load only the one most relevant skill. After answering, unload_context it.",
               "- Do not keep skills loaded across unrelated turns.",
               "",
               "Runtime extension tools:",

@@ -54,6 +54,8 @@ function App() {
     addToolApprovalResponse,
   } = useAgentChat({ agent });
 
+  const isBusy = status === "submitted" || status === "streaming";
+
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -71,12 +73,8 @@ function App() {
             {part.text}
           </p>
         );
-      if (part.type === "reasoning")
-        return (
-          <p key={i} className="text-xs italic text-zinc-500">
-            {part.text}
-          </p>
-        );
+      // Hide model reasoning — it floods the UI and slows perceived latency.
+      if (part.type === "reasoning") return null;
       if (isToolUIPart(part)) {
         if ("approval" in part && part.state === "approval-requested") {
           return (
@@ -132,27 +130,31 @@ function App() {
         }
 
         return (
-          <div
+          <details
             key={i}
-            className="mt-2 rounded-md border border-zinc-200 bg-zinc-50 p-2 text-xs"
+            className="mt-2 rounded-md border border-zinc-200 bg-zinc-50 text-xs"
           >
-            <div className="flex items-center gap-2">
-              <span className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-white">
-                {getToolName(part)}
-              </span>
-              <span className="text-zinc-500">{part.state}</span>
+            <summary className="cursor-pointer list-none px-2 py-1.5">
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-white">
+                  {getToolName(part)}
+                </span>
+                <span className="text-zinc-500">{part.state}</span>
+              </div>
+            </summary>
+            <div className="border-t border-zinc-200 px-2 pb-2">
+              {"input" in part && part.input != null && (
+                <pre className="mt-1 max-h-40 overflow-auto text-zinc-600">
+                  {JSON.stringify(part.input, null, 2)}
+                </pre>
+              )}
+              {part.state === "output-available" && (
+                <pre className="mt-1 max-h-40 overflow-auto text-zinc-600">
+                  {JSON.stringify(part.output, null, 2)}
+                </pre>
+              )}
             </div>
-            {"input" in part && part.input != null && (
-              <pre className="mt-1 overflow-x-auto text-zinc-600">
-                {JSON.stringify(part.input, null, 2)}
-              </pre>
-            )}
-            {part.state === "output-available" && (
-              <pre className="mt-1 overflow-x-auto text-zinc-600">
-                {JSON.stringify(part.output, null, 2)}
-              </pre>
-            )}
-          </div>
+          </details>
         );
       }
       return null;
@@ -193,7 +195,13 @@ function App() {
           >
             Stop
           </button>
-          <span className="shrink-0 text-xs text-zinc-400">{status}</span>
+          <span
+            className={`shrink-0 text-xs ${
+              isBusy ? "text-emerald-600" : "text-zinc-400"
+            }`}
+          >
+            {isBusy ? "Working…" : status}
+          </span>
         </div>
       </header>
 
@@ -293,6 +301,14 @@ function App() {
               </div>
             );
           })}
+          {isBusy && (
+            <div className="flex justify-start">
+              <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-500">
+                <span className="inline-block size-1.5 animate-pulse rounded-full bg-emerald-500" />
+                Generating reply…
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
