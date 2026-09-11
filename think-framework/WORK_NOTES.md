@@ -14,7 +14,7 @@
 ## Phase 2 — soul 성격 + 워크스페이스 로깅 지시
 - [x] `configureSession`의 `soul` — 격려하되 핑계 불허 / 훈련 피드백 질문 / 내일 집중 운동으로 마무리
 - [x] soul(또는 동일 컨텍스트)에 워크스페이스 지시: 운동 보고 시 `logs/<date>.md` 기록, `plan.md` 최신 유지, 과거 질문 시 파일 읽기
-- [ ] 내장 workspace 도구가 동작하는지 확인 (별도 도구 구현 불필요)
+- [x] 내장 workspace 도구가 동작하는지 확인 (별도 도구 구현 불필요)
 - **체크포인트:** 채팅에서 코치 톤 확인 + “오늘 스쿼트…” 보고 후 `logs/<date>.md` / `plan.md` 생성
 - **상태:** OK ✓
 - **참고:** `jinu-skills` R2 버킷 미존재로 `npm run dev`가 실패했음 → 계정에 버킷 생성 완료 (2026-09-11)
@@ -31,25 +31,33 @@
 - [x] R2에 가이드 ≥3 업로드 (`squat-form.md`, `running-program.md`, `stretching.md`)
 - [x] soul에 load → 답변 → unload 지시
 - **체크포인트:** 스쿼트 자세 질문 시 load → 답변 → unload
-- **상태:** 체크포인트 대기
+- **상태:** OK ✓
 - **참고:** 로컬 원본은 `skills/*.md`, R2 키는 `skills/<name>.md` (`jinu-skills` 버킷)
 
 ## Phase 5 — 런타임 확장 도구 (1RM)
-- [ ] `createExtensionTools` + `extensionLoader = this.env.LOADER`
-- [ ] 코치가 JS로 1RM 계산기를 작성·로드할 수 있게 soul/도구 안내
+- [x] `createExtensionTools` + `extensionLoader = this.env.LOADER`
+- [x] `extensionManager.getTools()`로 로드된 확장 도구를 이후 턴에도 노출
+- [x] 코치가 JS로 1RM 계산기를 작성·로드할 수 있게 soul 안내 (Epley)
 - **체크포인트:** “1RM 계산기 만들어줘” → “80kg 5회면?” → 도구 호출 결과 ≈ 93kg
-- **상태:** 대기
+- **상태:** OK ✓
 
 ## Phase 6 — UI 정리 + E2E
-- [ ] 헤더/카피를 Fitness Coach로 정리
-- [ ] 과제 테스트 방법 4항 전부 통과
+- [x] 헤더/카피를 Fitness Coach로 정리 (title, placeholder, empty states)
+- [ ] 과제 테스트 방법 4항 완전히 통과 (수동)
 - **체크포인트:** E2E 테스트 절차 문서화 + 수동 검증
-- **상태:** 대기
+- **상태:** 체크포인트 대기
 
 ### E2E 테스트 (Phase 6)
-1. `cd think-framework && npm run dev`
-2. “오늘 스쿼트 했어. 80kg으로 5회씩 5세트 했어” → Workspace에 `logs/<date>.md` 생성
-3. “이번 주에 무엇을 했지?” → 로그 파일을 읽어 답변
-4. 체중 75kg / 왼쪽 무릎 / 5km 30분 목표 전달 후 새 브라우저 → 내일 계획에 세 정보 반영
-5. 스쿼트 자세 질문 → R2 가이드 load/unload
-6. 1RM 계산기 생성 → “80kg 5회” → ≈ 93kg
+
+사전: `cd think-framework && npm run dev` → 브라우저에서 Fitness Coach UI 확인.
+
+파일 확인 위치: 채팅 위 **Workspace** 패널 (가상 FS, 로컬 디스크/깃 아님). 파일 클릭 시 내용 미리보기.
+
+| # | 입력 | 기대 |
+|---|------|------|
+| 1 | “오늘 스쿼트 했어. 80kg으로 5회씩 5세트 했어” | `logs/<오늘날짜>.md` + `plan.md` 생성/갱신, 코치 톤·내일 포커스 |
+| 2 | “이번 주에 무엇을 했지?” | workspace 로그를 **읽고** 답변 |
+| 3 | “저는 75kg이고 왼쪽 무릎이 안 좋아요. 5km를 30분 안에 뛰고 싶어요” | `set_context`(memory) 호출 |
+| 4 | Clear 또는 **새 브라우저** → “내일 운동 계획 짜줘” | 체중·무릎·5km 목표 반영 |
+| 5 | “스쿼트 자세 알려줘” | `load_context` → 답변 → `unload_context` |
+| 6 | “1RM 계산기를 만들어줘” → “80kg으로 5회 들면 내 1RM이 얼마야?” | `load_extension` 후 확장 도구 호출, ≈ **93kg** |

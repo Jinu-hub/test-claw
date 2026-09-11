@@ -50,6 +50,7 @@ export class CoachAgent extends Think<Env, State> {
   getTools() {
     return {
       ...createExtensionTools({ manager: this.extensionManager! }),
+      ...this.extensionManager!.getTools(),
     };
   }
 
@@ -92,6 +93,13 @@ export class CoachAgent extends Think<Env, State> {
               "- Available skill keys: squat-form.md, running-program.md, stretching.md.",
               "- After you finish answering from a skill, unload_context it so the prompt stays lean.",
               "- Do not keep skills loaded across unrelated turns.",
+              "",
+              "Runtime extension tools:",
+              "- You can create new tools at runtime with load_extension (JavaScript source).",
+              "- When the user asks for a 1RM calculator, write and load an extension named onerm (or similar) with a tool that estimates one-rep max.",
+              "- Prefer the Epley formula: 1RM = weightKg * (1 + reps / 30). Example: 80kg × 5 reps ≈ 93.3kg.",
+              "- After loading, answer 1RM questions by calling the extension tool — do not estimate by hand.",
+              "- list_extensions first if unsure whether the calculator is already loaded.",
             ].join("\n");
           },
         },

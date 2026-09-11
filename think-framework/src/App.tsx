@@ -170,7 +170,7 @@ function App() {
           <form onSubmit={handleSubmit} className="flex flex-1 gap-2">
             <input
               name="input"
-              placeholder="Type a message..."
+              placeholder="Report a workout, ask about form, or plan tomorrow…"
               autoComplete="off"
               className="flex-1 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm outline-none transition focus:border-zinc-400 focus:bg-white"
             />
@@ -206,7 +206,9 @@ function App() {
             </span>
           </div>
           {agentState.files.length === 0 ? (
-            <p className="mt-2 text-sm text-zinc-400">No files yet.</p>
+            <p className="mt-2 text-sm text-zinc-400">
+              Training logs and plan.md will appear here.
+            </p>
           ) : (
             <ul className="mt-3 space-y-1">
               {agentState.files.map((file) => (
@@ -264,8 +266,12 @@ function App() {
 
         <div className="flex-1 space-y-4">
           {messages.length === 0 && (
-            <div className="flex h-full min-h-[40vh] items-center justify-center text-sm text-zinc-400">
-              Say something to get started.
+            <div className="flex h-full min-h-[40vh] flex-col items-center justify-center gap-2 px-4 text-center text-sm text-zinc-400">
+              <p>Say hello to your coach.</p>
+              <p className="max-w-sm text-xs text-zinc-400">
+                Try reporting today&apos;s workout, sharing body goals, asking
+                squat form, or requesting a 1RM calculator.
+              </p>
             </div>
           )}
           {messages.map((message) => {
