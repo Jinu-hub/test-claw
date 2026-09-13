@@ -123,30 +123,31 @@ function App() {
   const activity = agent.state?.activity ?? {};
   const caseA = agent.state?.cases?.sideA;
   const caseB = agent.state?.cases?.sideB;
-  const bothReady = Boolean(caseA && caseB);
 
-  const lastAssistant = [...messages]
-    .reverse()
-    .find((m) => m.role === "assistant");
-  const verdictText = lastAssistant ? messageText(lastAssistant) : "";
-  const decisivePoints = [caseA, caseB]
-    .flatMap((c) => c?.arguments.map((a) => a.point) ?? [])
-    .filter(Boolean);
-  const mentionsWinner =
-    Boolean(sides) &&
-    (verdictText.includes(sides!.sideA.name) ||
-      verdictText.includes(sides!.sideB.name)) &&
-    (verdictText.includes("승자") || verdictText.includes("승리"));
-  const mentionsArgument = decisivePoints.some((p) =>
-    verdictText.includes(p),
-  );
-  const e2eOk =
-    bothReady &&
-    caseA!.arguments.length === 3 &&
-    caseB!.arguments.length === 3 &&
-    Boolean(verdictText) &&
-    mentionsWinner &&
-    mentionsArgument;
+  // E2E checklist (숨김 — 필요 시 주석 해제)
+  // const bothReady = Boolean(caseA && caseB);
+  // const lastAssistant = [...messages]
+  //   .reverse()
+  //   .find((m) => m.role === "assistant");
+  // const verdictText = lastAssistant ? messageText(lastAssistant) : "";
+  // const decisivePoints = [caseA, caseB]
+  //   .flatMap((c) => c?.arguments.map((a) => a.point) ?? [])
+  //   .filter(Boolean);
+  // const mentionsWinner =
+  //   Boolean(sides) &&
+  //   (verdictText.includes(sides!.sideA.name) ||
+  //     verdictText.includes(sides!.sideB.name)) &&
+  //   (verdictText.includes("승자") || verdictText.includes("승리"));
+  // const mentionsArgument = decisivePoints.some((p) =>
+  //   verdictText.includes(p),
+  // );
+  // const e2eOk =
+  //   bothReady &&
+  //   caseA!.arguments.length === 3 &&
+  //   caseB!.arguments.length === 3 &&
+  //   Boolean(verdictText) &&
+  //   mentionsWinner &&
+  //   mentionsArgument;
 
   const runDebate = async () => {
     setError(null);
@@ -160,6 +161,24 @@ function App() {
       setRunning(false);
     }
   };
+
+  const resetScreen = async () => {
+    setError(null);
+    setRunning(false);
+    try {
+      await clearHistory();
+      await agent.call("reset");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const hasDebateResult =
+    Boolean(sides) ||
+    Boolean(caseA) ||
+    Boolean(caseB) ||
+    messages.length > 0 ||
+    status !== "idle";
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 text-zinc-900">
@@ -193,6 +212,14 @@ function App() {
               className="shrink-0 rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-40"
             >
               {statusLabel(status, running)}
+            </button>
+            <button
+              type="button"
+              disabled={running || !hasDebateResult}
+              onClick={() => void resetScreen()}
+              className="shrink-0 rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-900 transition hover:bg-zinc-100 disabled:opacity-40"
+            >
+              리셋
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -289,6 +316,7 @@ function App() {
           </div>
         </section>
 
+        {/* E2E checklist (숨김 — 필요 시 주석 해제)
         {bothReady && verdictText && (
           <section
             className={`rounded-2xl border p-4 ${
@@ -314,6 +342,7 @@ function App() {
             </pre>
           </section>
         )}
+        */}
       </main>
     </div>
   );

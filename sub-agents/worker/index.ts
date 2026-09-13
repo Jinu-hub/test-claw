@@ -256,6 +256,17 @@ export class Orchestrator extends AIChatAgent<Env, OrchestratorState> {
    * When both cases arrive, stream a judge verdict into chat via saveMessages.
    */
   @callable()
+  async reset() {
+    this.setState({
+      status: "idle",
+      topic: undefined,
+      sides: undefined,
+      activity: undefined,
+      cases: undefined,
+    });
+  }
+
+  @callable()
   async debate(topic: string) {
     const workersAi = createWorkersAI({ binding: this.env.AI });
     const model = workersAi(MODEL);
